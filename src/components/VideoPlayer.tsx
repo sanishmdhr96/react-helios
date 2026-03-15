@@ -5,6 +5,7 @@ import type { VideoPlayerProps, VideoPlayerRef } from "../lib/types";
 import { useVideoPlayer } from "../hooks/useVideoPlayer";
 import { Controls } from "./Controls";
 import { ContextMenu } from "./ContextMenu";
+import { AudioModeOverlay } from "./AudioModeOverlay";
 
 const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
   (
@@ -24,6 +25,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       hlsConfig,
       subtitles,
       crossOrigin,
+      logo,
+      showAudioButton = true,
+      defaultAudioMode,
+      audioBandwidthThreshold,
       onPlay,
       onPause,
       onEnded,
@@ -32,6 +37,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       onDurationChange,
       onBuffering,
       onTheaterModeChange,
+      onAudioModeChange,
       contextMenuItems,
       controlBarItems,
     },
@@ -50,6 +56,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         playbackRates,
         enableHLS,
         hlsConfig,
+        defaultAudioMode,
+        audioBandwidthThreshold,
         onPlay,
         onPause,
         onEnded,
@@ -58,6 +66,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         onDurationChange,
         onBuffering,
         onTheaterModeChange,
+        onAudioModeChange,
       },
     );
 
@@ -112,7 +121,14 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           onClick={handleVideoClick}
           onDoubleClick={handleDoubleClick}
           playsInline
-          style={{ width: "100%", height: "100%", display: "block", cursor: "pointer" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "block",
+            cursor: "pointer",
+            // Keep the element in the DOM so audio keeps playing; just hide it visually
+            visibility: state.isAudioMode ? "hidden" : "visible",
+          }}
           data-test="video-element"
         >
           {subtitles?.map((track) => (
@@ -126,6 +142,15 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             />
           ))}
         </video>
+
+        {/* Audio mode overlay — sits above video, below controls (DOM order) */}
+        {state.isAudioMode && (
+          <AudioModeOverlay
+            poster={poster}
+            logo={logo}
+            isPlaying={state.isPlaying}
+          />
+        )}
 
         {controls && (
           <Controls
@@ -142,6 +167,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             isFullscreen={state.isFullscreen}
             isPictureInPicture={state.isPictureInPicture}
             isTheaterMode={state.isTheaterMode}
+            isAudioMode={state.isAudioMode}
+            showAudioButton={showAudioButton}
             isLive={state.isLive}
             qualityLevels={state.qualityLevels}
             currentQualityLevel={state.currentQualityLevel}

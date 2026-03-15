@@ -21,6 +21,9 @@ interface UseVideoPlayerOptions {
   playbackRates?: PlaybackRate[];
   enableHLS?: boolean;
   hlsConfig?: Partial<HlsConfig>;
+  defaultAudioMode?: boolean;
+  /** Kbps — HLS only. 0 = disabled. @default 300 */
+  audioBandwidthThreshold?: number;
   onPlay?: () => void;
   onPause?: () => void;
   onEnded?: () => void;
@@ -29,6 +32,7 @@ interface UseVideoPlayerOptions {
   onDurationChange?: (duration: number) => void;
   onBuffering?: (isBuffering: boolean) => void;
   onTheaterModeChange?: (isTheater: boolean) => void;
+  onAudioModeChange?: (isAudio: boolean) => void;
 }
 
 const DEFAULT_STATE: PlayerState = {
@@ -41,6 +45,7 @@ const DEFAULT_STATE: PlayerState = {
   isFullscreen: false,
   isPictureInPicture: false,
   isTheaterMode: false,
+  isAudioMode: false,
   isBuffering: false,
   bufferedRanges: [],
   error: null,
@@ -67,10 +72,20 @@ export function useVideoPlayer(
     ...DEFAULT_STATE,
     isMuted: options.muted ?? false,
     volume: options.muted ? 0 : 1,
+    isAudioMode: options.defaultAudioMode ?? false,
   });
 
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // ── Audio mode / bandwidth detection ─────────────────────────────────────
+  /** Rolling window of the last 5 HLS bandwidth samples (Kbps). */
+  const bwSamplesRef = useRef<number[]>([]);
+  /** True when the current audio-mode switch was triggered automatically. */
+  const autoSwitchedRef = useRef<boolean>(false);
+  /** While true, auto-detection is suppressed (user just manually toggled). */
+  const manualCooldownActiveRef = useRef<boolean>(false);
+  const manualCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Source / HLS initialisation ────────────────────────────────────────────
   useEffect(() => {
@@ -83,6 +98,15 @@ export function useVideoPlayer(
     }
     networkRetriesRef.current = 0;
 
+    // Reset bandwidth samples and cooldown for the new source
+    bwSamplesRef.current = [];
+    autoSwitchedRef.current = false;
+    manualCooldownActiveRef.current = false;
+    if (manualCooldownTimerRef.current) {
+      clearTimeout(manualCooldownTimerRef.current);
+      manualCooldownTimerRef.current = null;
+    }
+
     setState((prev) => ({
       ...prev,
       currentTime: 0,
@@ -92,6 +116,7 @@ export function useVideoPlayer(
       isLive: false,
       qualityLevels: [],
       currentQualityLevel: -1,
+      isAudioMode: optionsRef.current.defaultAudioMode ?? false,
     }));
 
     if (!src) return;
@@ -134,6 +159,37 @@ export function useVideoPlayer(
 
         hls.on(Events.LEVEL_SWITCHED, (_, data) => {
           setState((prev) => ({ ...prev, currentQualityLevel: data.level }));
+        });
+
+        hls.on(Events.FRAG_LOADED, () => {
+          const threshold = optionsRef.current.audioBandwidthThreshold ?? 300;
+          if (!threshold) return; // 0 = disabled
+          if (manualCooldownActiveRef.current) return;
+
+          const bwKbps = hls.bandwidthEstimate / 1000; // hls.js EWM estimate
+          if (bwKbps <= 0) return;
+
+          const samples = bwSamplesRef.current;
+          samples.push(bwKbps);
+          if (samples.length > 5) samples.shift();
+          if (samples.length < 3) return; // wait for enough data
+
+          const avg = samples.reduce((s, v) => s + v, 0) / samples.length;
+
+          setState((prev) => {
+            if (!prev.isAudioMode && avg < threshold) {
+              autoSwitchedRef.current = true;
+              optionsRef.current.onAudioModeChange?.(true);
+              return { ...prev, isAudioMode: true };
+            }
+            // Switch back only if we were the one who auto-switched
+            if (prev.isAudioMode && autoSwitchedRef.current && avg > threshold * 1.5) {
+              autoSwitchedRef.current = false;
+              optionsRef.current.onAudioModeChange?.(false);
+              return { ...prev, isAudioMode: false };
+            }
+            return prev;
+          });
         });
 
         const MAX_RETRIES = 3;
@@ -194,6 +250,10 @@ export function useVideoPlayer(
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
+      }
+      if (manualCooldownTimerRef.current) {
+        clearTimeout(manualCooldownTimerRef.current);
+        manualCooldownTimerRef.current = null;
       }
     };
   }, [src, videoRef]);
@@ -437,6 +497,24 @@ export function useVideoPlayer(
     optionsRef.current.onTheaterModeChange?.(next);
   }, []);
 
+  const toggleAudioMode = useCallback(() => {
+    // Clear any running cooldown
+    if (manualCooldownTimerRef.current) clearTimeout(manualCooldownTimerRef.current);
+
+    // Mark as a manual override — suppress auto-detection for 60 s
+    autoSwitchedRef.current = false;
+    manualCooldownActiveRef.current = true;
+    manualCooldownTimerRef.current = setTimeout(() => {
+      manualCooldownActiveRef.current = false;
+      // Clear samples so auto-detection starts fresh after cooldown
+      bwSamplesRef.current = [];
+    }, 60_000);
+
+    const next = !stateRef.current.isAudioMode;
+    setState((prev) => ({ ...prev, isAudioMode: next }));
+    optionsRef.current.onAudioModeChange?.(next);
+  }, []);
+
   const getState = useCallback((): PlayerState => {
     const video = videoRef.current;
     const currentTime = video?.currentTime ?? 0;
@@ -467,6 +545,7 @@ export function useVideoPlayer(
       toggleFullscreen,
       togglePictureInPicture,
       toggleTheaterMode,
+      toggleAudioMode,
       getState,
       getVideoElement,
     }),
@@ -482,6 +561,7 @@ export function useVideoPlayer(
       toggleFullscreen,
       togglePictureInPicture,
       toggleTheaterMode,
+      toggleAudioMode,
       getState,
       getVideoElement,
     ],

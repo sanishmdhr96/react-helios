@@ -6,6 +6,9 @@ export { VideoPlayer };
 export { Controls } from "./components/Controls";
 export * as ControlElements from "./components/control-elements";
 
+// Audio mode bandwidth presets
+export { AUDIO_BANDWIDTH_THRESHOLDS } from "./lib/types";
+
 // Types
 export type {
   VideoPlayerProps,

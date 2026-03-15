@@ -1,6 +1,34 @@
 import type { ReactNode } from "react";
 import type { HlsConfig } from "hls.js";
 
+/**
+ * Preset bandwidth thresholds (Kbps) for automatic audio mode switching.
+ *
+ * | Preset    | Kbps | Typical connection      |
+ * |-----------|------|-------------------------|
+ * | EXTREME   |  100 | 2G / Edge               |
+ * | POOR      |  300 | Slow 3G  ← **default**  |
+ * | FAIR      |  700 | 3G                      |
+ * | GOOD      | 1500 | 4G / Wi-Fi              |
+ *
+ * Pass any of these (or a custom number) as `audioBandwidthThreshold`.
+ * Set to `0` to disable automatic switching entirely.
+ *
+ * @example
+ * import { AUDIO_BANDWIDTH_THRESHOLDS } from "react-helios";
+ * <VideoPlayer audioBandwidthThreshold={AUDIO_BANDWIDTH_THRESHOLDS.FAIR} ... />
+ */
+export const AUDIO_BANDWIDTH_THRESHOLDS = {
+  /** < 100 Kbps — very poor, 2G / Edge */
+  EXTREME: 100,
+  /** < 300 Kbps — poor, slow 3G (default) */
+  POOR: 300,
+  /** < 700 Kbps — fair, 3G */
+  FAIR: 700,
+  /** < 1500 Kbps — decent, 4G / Wi-Fi */
+  GOOD: 1500,
+} as const;
+
 export interface BufferedRange {
   start: number;
   end: number;
@@ -50,6 +78,8 @@ export interface PlayerState {
   isFullscreen: boolean;
   isPictureInPicture: boolean;
   isTheaterMode: boolean;
+  /** True when the player is in audio-only mode (video hidden, waveform shown). */
+  isAudioMode: boolean;
   isLive: boolean;
   qualityLevels: HLSQualityLevel[];
   currentQualityLevel: number;
@@ -69,6 +99,8 @@ export interface VideoPlayerRef {
   toggleFullscreen: () => Promise<void>;
   togglePictureInPicture: () => Promise<void>;
   toggleTheaterMode: () => void;
+  /** Toggle audio-only mode. Can also be triggered programmatically from outside the player. */
+  toggleAudioMode: () => void;
   getState: () => PlayerState;
   getVideoElement: () => HTMLVideoElement | null;
 }
@@ -127,6 +159,34 @@ export interface VideoPlayerProps {
   onDurationChange?: (duration: number) => void;
   onBuffering?: (isBuffering: boolean) => void;
   onTheaterModeChange?: (isTheater: boolean) => void;
+  /**
+   * Image URL or ReactNode shown as artwork in audio mode.
+   * Priority: `poster` prop → `logo` string/ReactNode → waveform-only.
+   * If a string URL is provided the image is rendered white-normalised (filter invert)
+   * so it stands out on the dark background.
+   */
+  logo?: string | ReactNode;
+  /**
+   * Show the headphones / audio-mode toggle button in the control bar.
+   * @default true
+   */
+  showAudioButton?: boolean;
+  /**
+   * Start the player in audio-only mode on mount.
+   * @default false
+   */
+  defaultAudioMode?: boolean;
+  /**
+   * Bandwidth threshold in **Kbps**. When the measured download speed falls below
+   * this value the player automatically switches to audio mode.
+   * Use the exported `AUDIO_BANDWIDTH_THRESHOLDS` presets for convenience.
+   * Set to `0` to disable automatic switching.
+   * Only applies to HLS streams (where hls.js measures real segment bandwidth).
+   * @default 300  (AUDIO_BANDWIDTH_THRESHOLDS.POOR)
+   */
+  audioBandwidthThreshold?: number;
+  /** Fired whenever audio mode is toggled — either automatically or by the user. */
+  onAudioModeChange?: (isAudio: boolean) => void;
   contextMenuItems?: ContextMenuItem[];
   controlBarItems?: ControlBarItem[];
 }

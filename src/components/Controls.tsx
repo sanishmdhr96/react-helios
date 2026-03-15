@@ -23,6 +23,8 @@ interface ControlsProps {
   isFullscreen: boolean;
   isPictureInPicture: boolean;
   isTheaterMode: boolean;
+  isAudioMode: boolean;
+  showAudioButton: boolean;
   isLive: boolean;
   qualityLevels: HLSQualityLevel[];
   currentQualityLevel: number;
@@ -43,6 +45,8 @@ export const Controls: React.FC<ControlsProps> = ({
   isFullscreen,
   isPictureInPicture,
   isTheaterMode,
+  isAudioMode,
+  showAudioButton,
   isLive,
   qualityLevels,
   currentQualityLevel,
@@ -173,6 +177,7 @@ export const Controls: React.FC<ControlsProps> = ({
   const handleQualityChange = useCallback((l: number) => playerRef.setQualityLevel(l), [playerRef]);
   const handlePiP = useCallback(() => playerRef.togglePictureInPicture(), [playerRef]);
   const handleTheaterToggle = useCallback(() => playerRef.toggleTheaterMode(), [playerRef]);
+  const handleAudioToggle = useCallback(() => playerRef.toggleAudioMode(), [playerRef]);
   const handleFullscreen = useCallback(() => playerRef.toggleFullscreen(), [playerRef]);
   const handleSeekToLive = useCallback(() => playerRef.seekToLive(), [playerRef]);
 
@@ -255,6 +260,9 @@ export const Controls: React.FC<ControlsProps> = ({
             </button>
           ))}
 
+          {showAudioButton && (
+            <AudioModeButton onClick={handleAudioToggle} isAudioMode={isAudioMode} />
+          )}
           <ControlElements.PiPButton onClick={handlePiP} isPiP={isPictureInPicture} />
           <ControlElements.TheaterButton onClick={handleTheaterToggle} isTheater={isTheaterMode} />
           <ControlElements.FullscreenButton onClick={handleFullscreen} isFullscreen={isFullscreen} />
@@ -263,6 +271,29 @@ export const Controls: React.FC<ControlsProps> = ({
     </div>
   );
 };
+
+const AudioModeButton = memo(({ onClick, isAudioMode }: { onClick: () => void; isAudioMode: boolean }) => (
+  <button
+    onClick={onClick}
+    className="controlButton"
+    aria-label={isAudioMode ? "Exit audio mode" : "Audio only mode"}
+    title={isAudioMode ? "Exit audio mode" : "Audio only mode"}
+    aria-pressed={isAudioMode}
+  >
+    {isAudioMode ? (
+      // Video-camera icon — "switch back to video"
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+      </svg>
+    ) : (
+      // Headphones icon — "switch to audio"
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 3a9 9 0 0 0-9 9v7c0 1.1.9 2 2 2h1a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H4v-1a8 8 0 0 1 16 0v1h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-4c0-4.97-4.03-9-9-9z" />
+      </svg>
+    )}
+  </button>
+));
+AudioModeButton.displayName = "AudioModeButton";
 
 const GoLiveButton = memo(({ onClick }: { onClick: () => void }) => (
   <button
