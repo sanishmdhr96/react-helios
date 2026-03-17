@@ -8,25 +8,30 @@ import { ContextMenu } from "./ContextMenu";
 import { AudioModeOverlay } from "./AudioModeOverlay";
 
 const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
-  (
-    {
-      src,
-      poster,
+  (props, forwardedRef) => {
+    const { src, poster, className, controls = true, options = {} } = props;
+
+    const {
       autoplay = false,
       muted = false,
       loop = false,
-      controls = true,
       preload = "metadata",
       playbackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-      className,
       enableHLS = true,
       enablePreview = true,
       thumbnailVtt,
       hlsConfig,
+      autoHideControls = true,
       subtitles,
       crossOrigin,
       logo,
-      showAudioButton = true,
+      audioModeFallback,
+      audioSrc,
+      showAudioButton,
+      audioModeIcon,
+      videoModeIcon,
+      audioModeLabel,
+      videoModeLabel,
       defaultAudioMode,
       audioBandwidthThreshold,
       onPlay,
@@ -40,9 +45,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       onAudioModeChange,
       contextMenuItems,
       controlBarItems,
-    },
-    forwardedRef,
-  ) => {
+    } = options;
+
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -148,7 +152,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           <AudioModeOverlay
             poster={poster}
             logo={logo}
-            isPlaying={state.isPlaying}
+            audioModeFallback={audioModeFallback}
+            isBuffering={state.isBuffering}
+            onOverlayClick={handleVideoClick}
           />
         )}
 
@@ -159,7 +165,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             playerContainerRef={containerRef}
             playbackRates={playbackRates}
             enablePreview={enablePreview}
-            thumbnailVtt={thumbnailVtt}
+            thumbnailVtt={state.isAudioMode ? undefined : thumbnailVtt}
             isPlaying={state.isPlaying}
             volume={state.volume}
             isMuted={state.isMuted}
@@ -168,11 +174,16 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             isPictureInPicture={state.isPictureInPicture}
             isTheaterMode={state.isTheaterMode}
             isAudioMode={state.isAudioMode}
-            showAudioButton={showAudioButton}
+            showAudioButton={showAudioButton ?? !!audioSrc}
+            audioModeIcon={audioModeIcon}
+            videoModeIcon={videoModeIcon}
+            audioModeLabel={audioModeLabel}
+            videoModeLabel={videoModeLabel}
             isLive={state.isLive}
             qualityLevels={state.qualityLevels}
             currentQualityLevel={state.currentQualityLevel}
             controlBarItems={controlBarItems}
+            autoHideControls={autoHideControls}
           />
         )}
 
@@ -236,7 +247,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                 animation: "rvp-spin 0.8s linear infinite",
               }}
             />
-            <style>{`@keyframes rvp-spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 

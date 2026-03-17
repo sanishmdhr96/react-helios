@@ -48,6 +48,12 @@
   }
 }
 
+@keyframes rvp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .bufferingText {
   font-size: 14px;
   font-weight: 500;

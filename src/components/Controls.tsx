@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useEffect, useRef, useState, useCallback } from "react";
+import React, { memo, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import type {
   PlaybackRate,
   VideoPlayerRef,
@@ -25,13 +25,18 @@ interface ControlsProps {
   isTheaterMode: boolean;
   isAudioMode: boolean;
   showAudioButton: boolean;
+  audioModeIcon?: ReactNode;
+  videoModeIcon?: ReactNode;
+  audioModeLabel?: string;
+  videoModeLabel?: string;
   isLive: boolean;
   qualityLevels: HLSQualityLevel[];
   currentQualityLevel: number;
   controlBarItems?: ControlBarItem[];
+  autoHideControls: boolean;
 }
 
-export const Controls: React.FC<ControlsProps> = ({
+export const Controls = memo<ControlsProps>(function Controls({
   videoRef,
   playerRef,
   playerContainerRef,
@@ -47,11 +52,16 @@ export const Controls: React.FC<ControlsProps> = ({
   isTheaterMode,
   isAudioMode,
   showAudioButton,
+  audioModeIcon,
+  videoModeIcon,
+  audioModeLabel,
+  videoModeLabel,
   isLive,
   qualityLevels,
   currentQualityLevel,
   controlBarItems,
-}) => {
+  autoHideControls,
+}) {
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showControls, setShowControls] = useState(true);
 
@@ -66,39 +76,51 @@ export const Controls: React.FC<ControlsProps> = ({
 
   // ─── Auto-hide controls ──────────────────────────────────────────────────
   useEffect(() => {
+    // Audio mode or disabled: always show, never hide
+    if (isAudioMode || !autoHideControls) {
+      setShowControls(true);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      return;
+    }
+    // Paused: always show
     if (!isPlaying) {
       setShowControls(true);
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
       return;
     }
 
-    const reset = () => {
+    // Playing + video mode: show on hover, hide on mouse leave
+    const el = playerContainerRef.current;
+    if (!el) return;
+
+    const handleShow = () => {
       setShowControls(true);
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      // Also start a 3s inactivity timer while mouse is inside
       hideTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
     };
 
-    const el = playerContainerRef.current;
-    if (el) {
-      el.addEventListener("mousemove", reset);
-      el.addEventListener("mouseenter", reset);
-      el.addEventListener("mouseleave", () => {
-        if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-      });
-      el.addEventListener("touchstart", reset, { passive: true });
-    }
-    reset();
+    const handleHide = () => {
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      setShowControls(false);
+    };
+
+    el.addEventListener("mousemove", handleShow);
+    el.addEventListener("mouseenter", handleShow);
+    el.addEventListener("mouseleave", handleHide);
+    el.addEventListener("touchstart", handleShow, { passive: true });
+
+    // Start hidden while playing
+    setShowControls(false);
 
     return () => {
-      if (el) {
-        el.removeEventListener("mousemove", reset);
-        el.removeEventListener("mouseenter", reset);
-        el.removeEventListener("mouseleave", () => { });
-        el.removeEventListener("touchstart", reset);
-      }
+      el.removeEventListener("mousemove", handleShow);
+      el.removeEventListener("mouseenter", handleShow);
+      el.removeEventListener("mouseleave", handleHide);
+      el.removeEventListener("touchstart", handleShow);
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     };
-  }, [isPlaying, playerContainerRef]);
+  }, [isPlaying, isAudioMode, autoHideControls, playerContainerRef]);
 
   // ─── Keyboard shortcuts ─────────────────────────────────────────────────
   useEffect(() => {
@@ -192,6 +214,7 @@ export const Controls: React.FC<ControlsProps> = ({
         opacity: showControls ? 1 : 0,
         transition: "opacity 0.3s",
         pointerEvents: "none",
+        zIndex: 2, // must be above the audio overlay (z-index: 1)
       }}
     >
       <div
@@ -203,7 +226,7 @@ export const Controls: React.FC<ControlsProps> = ({
         role="region"
         aria-label="Video player controls"
       >
-        {/* Progress bar — self-subscribes to timeupdate/progress on videoRef */}
+        {/* Progress bar */}
         <ControlElements.ProgressBar
           videoRef={videoRef}
           playerRef={playerRef}
@@ -237,6 +260,18 @@ export const Controls: React.FC<ControlsProps> = ({
             <GoLiveButton onClick={handleSeekToLive} />
           )}
 
+          {/* Audio mode toggle — before Settings so it's easy to find */}
+          {showAudioButton && (
+            <AudioModeButton
+              onClick={handleAudioToggle}
+              isAudioMode={isAudioMode}
+              audioModeIcon={audioModeIcon}
+              videoModeIcon={videoModeIcon}
+              audioModeLabel={audioModeLabel}
+              videoModeLabel={videoModeLabel}
+            />
+          )}
+
           {/* Settings — speed always shown; quality tab appears for HLS streams */}
           <ControlElements.SettingsMenu
             currentRate={playbackRate}
@@ -259,10 +294,6 @@ export const Controls: React.FC<ControlsProps> = ({
               {item.icon}
             </button>
           ))}
-
-          {showAudioButton && (
-            <AudioModeButton onClick={handleAudioToggle} isAudioMode={isAudioMode} />
-          )}
           <ControlElements.PiPButton onClick={handlePiP} isPiP={isPictureInPicture} />
           <ControlElements.TheaterButton onClick={handleTheaterToggle} isTheater={isTheaterMode} />
           <ControlElements.FullscreenButton onClick={handleFullscreen} isFullscreen={isFullscreen} />
@@ -270,29 +301,50 @@ export const Controls: React.FC<ControlsProps> = ({
       </div>
     </div>
   );
-};
+});
+Controls.displayName = "Controls";
 
-const AudioModeButton = memo(({ onClick, isAudioMode }: { onClick: () => void; isAudioMode: boolean }) => (
-  <button
-    onClick={onClick}
-    className="controlButton"
-    aria-label={isAudioMode ? "Exit audio mode" : "Audio only mode"}
-    title={isAudioMode ? "Exit audio mode" : "Audio only mode"}
-    aria-pressed={isAudioMode}
-  >
-    {isAudioMode ? (
-      // Video-camera icon — "switch back to video"
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-      </svg>
-    ) : (
-      // Headphones icon — "switch to audio"
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 3a9 9 0 0 0-9 9v7c0 1.1.9 2 2 2h1a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H4v-1a8 8 0 0 1 16 0v1h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-4c0-4.97-4.03-9-9-9z" />
-      </svg>
-    )}
-  </button>
-));
+const AudioModeButton = memo(({
+  onClick,
+  isAudioMode,
+  audioModeIcon,
+  videoModeIcon,
+  audioModeLabel,
+  videoModeLabel,
+}: {
+  onClick: () => void;
+  isAudioMode: boolean;
+  audioModeIcon?: ReactNode;
+  videoModeIcon?: ReactNode;
+  audioModeLabel?: string;
+  videoModeLabel?: string;
+}) => {
+  const label = isAudioMode ? (videoModeLabel ?? "Video") : (audioModeLabel ?? "Audio");
+  const icon = isAudioMode
+    ? (videoModeIcon ?? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+        </svg>
+      ))
+    : (audioModeIcon ?? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 3a9 9 0 0 0-9 9v7c0 1.1.9 2 2 2h1a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H4v-1a8 8 0 0 1 16 0v1h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-4c0-4.97-4.03-9-9-9z" />
+        </svg>
+      ));
+
+  return (
+    <button
+      onClick={onClick}
+      className="rvp-audio-toggle-btn"
+      aria-label={label}
+      title={label}
+      aria-pressed={isAudioMode}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+});
 AudioModeButton.displayName = "AudioModeButton";
 
 const GoLiveButton = memo(({ onClick }: { onClick: () => void }) => (

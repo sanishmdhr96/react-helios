@@ -16,13 +16,16 @@ import "react-helios/styles";
 
 <VideoPlayer
   src="https://example.com/video.mp4"
-  controls
-  autoplay={false}
-  loop
-  muted
   poster="https://example.com/poster.jpg"
-  preload="metadata"
+  controls
   className="my-player"
+  options={{
+    autoplay: false,
+    loop: false,
+    muted: false,
+    preload: "metadata",
+    thumbnailVtt: "https://example.com/thumbs/storyboard.vtt",
+  }}
 />`;
 
 // const CODE_SUBTITLES = `import { VideoPlayer } from "react-helios";
@@ -69,7 +72,7 @@ const menuItems: ContextMenuItem[] = [
 
 <VideoPlayer
   src="https://example.com/video.mp4"
-  contextMenuItems={menuItems}
+  options={{ contextMenuItems: menuItems }}
 />
 // Right-click the player to see custom items
 // appended below the built-in context menu.`;
@@ -99,35 +102,41 @@ const controlBarItems: ControlBarItem[] = [
 
 <VideoPlayer
   src="https://example.com/video.mp4"
-  controlBarItems={controlBarItems}
+  options={{ controlBarItems }}
 />
 // Buttons appear on the right side of the control bar.`;
 
 const CODE_CALLBACKS = `<VideoPlayer
   src="https://example.com/video.mp4"
+  options={{
+    onPlay: () => console.log("play"),
+    onPause: () => console.log("pause"),
+    onEnded: () => console.log("ended"),
 
-  onPlay={() => console.log("play")}
-  onPause={() => console.log("pause")}
-  onEnded={() => console.log("ended")}
+    // fires every ~250ms during playback (no React re-render)
+    onTimeUpdate: (time) => updateProgressUI(time),
 
-  // fires every ~250ms during playback (no React re-render)
-  onTimeUpdate={(time) => updateProgressUI(time)}
+    onDurationChange: (duration) => {
+      console.log("duration:", duration);
+    },
 
-  onDurationChange={(duration) => {
-    console.log("duration:", duration);
-  }}
+    // true when stalled, false when can play
+    onBuffering: (isBuffering) => setSpinner(isBuffering),
 
-  // true when stalled, false when can play
-  onBuffering={(isBuffering) => setSpinner(isBuffering)}
+    onError: (err) => {
+      console.error(err.code, err.message);
+      reportToSentry(err);
+    },
 
-  onError={(err) => {
-    console.error(err.code, err.message);
-    reportToSentry(err);
-  }}
+    // sync your layout when theater is toggled
+    onTheaterModeChange: (isTheater) => {
+      setWideLayout(isTheater);
+    },
 
-  // sync your layout when theater is toggled
-  onTheaterModeChange={(isTheater) => {
-    setWideLayout(isTheater);
+    // fired on manual toggle and auto bandwidth switching
+    onAudioModeChange: (isAudio) => {
+      console.log("audio mode:", isAudio);
+    },
   }}
 />`;
 
@@ -135,24 +144,26 @@ const CODE_HLS_CONFIG = `import { VideoPlayer } from "react-helios";
 
 <VideoPlayer
   src="https://example.com/stream.m3u8"
-  enableHLS
-  hlsConfig={{
-    // seconds of video to keep in forward buffer
-    maxBufferLength: 60,
-    maxMaxBufferLength: 600,
+  options={{
+    enableHLS: true,
+    hlsConfig: {
+      // seconds of video to keep in forward buffer
+      maxBufferLength: 60,
+      maxMaxBufferLength: 600,
 
-    // -1 = auto ABR; 0 = highest quality level
-    startLevel: -1,
+      // -1 = auto ABR; 0 = highest quality level
+      startLevel: -1,
 
-    // don't request 4K on a 480p player
-    capLevelToPlayerSize: true,
+      // don't request 4K on a 480p player
+      capLevelToPlayerSize: true,
 
-    // live streams: number of segments behind live edge
-    liveSyncDurationCount: 5,
+      // live streams: number of segments behind live edge
+      liveSyncDurationCount: 5,
 
-    // cross-origin credentials for segment requests
-    xhrSetup: (xhr) => {
-      xhr.withCredentials = true;
+      // cross-origin credentials for segment requests
+      xhrSetup: (xhr) => {
+        xhr.withCredentials = true;
+      },
     },
   }}
 />
@@ -189,21 +200,14 @@ export default function App() {
       <button onClick={() => playerRef.current?.toggleFullscreen()}>FS</button>
       <button onClick={() => playerRef.current?.togglePictureInPicture()}>PiP</button>
       <button onClick={() => playerRef.current?.toggleTheaterMode()}>Theater</button>
+      <button onClick={() => playerRef.current?.toggleAudioMode()}>Audio</button>
 
       {/* Live streams */}
       <button onClick={() => playerRef.current?.seekToLive()}>Go Live</button>
 
-      {/* State snapshot */}
+      {/* State snapshot — includes isAudioMode, qualityLevels, etc. */}
       <button onClick={() => console.log(playerRef.current?.getState())}>
         Log State
-      </button>
-
-      {/* Raw video element */}
-      <button onClick={() => {
-        const el = playerRef.current?.getVideoElement();
-        console.log("video element:", el);
-      }}>
-        Log Element
       </button>
     </>
   );
@@ -225,19 +229,51 @@ export default function Page() {
       <VideoPlayer
         src="https://example.com/stream.m3u8"
         controls
-        // Keep your layout in sync with theater state
-        onTheaterModeChange={(t) => setIsTheater(t)}
+        options={{
+          // Keep your layout in sync with theater state
+          onTheaterModeChange: (t) => setIsTheater(t),
+        }}
       />
 
     </main>
   );
 }`;
 
+const CODE_AUDIO_MODE = `import { VideoPlayer, AUDIO_BANDWIDTH_THRESHOLDS } from "react-helios";
+
+// Audio mode hides the video and shows the poster artwork.
+// The toggle button only appears when audioSrc is provided.
+
+<VideoPlayer
+  src="https://example.com/stream.m3u8"
+  poster="https://example.com/artwork.jpg"
+  controls
+  options={{
+    audioSrc: "https://example.com/audio-only.m3u8",
+
+    // Button labels (both are configurable)
+    audioModeLabel: "Switch to Audio",
+    videoModeLabel: "Switch to Video",
+
+    // Start in audio mode (optional)
+    defaultAudioMode: false,
+
+    // Auto-switch when bandwidth drops below threshold (HLS only)
+    // AUDIO_BANDWIDTH_THRESHOLDS: EXTREME=100, POOR=300, FAIR=700, GOOD=1500 Kbps
+    audioBandwidthThreshold: AUDIO_BANDWIDTH_THRESHOLDS.POOR,
+
+    // Fired on manual toggle AND automatic bandwidth switching
+    onAudioModeChange: (isAudio) => {
+      console.log("audio mode:", isAudio);
+    },
+  }}
+/>`;
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EXAMPLE_TABS = [
   { id: "minimal", label: "Minimal" },
-  // { id: "subtitles", label: "Subtitles" },
+  { id: "audio-mode", label: "Audio Mode" },
   { id: "ctx-menu", label: "Context Menu" },
   { id: "ctrl-bar", label: "Control Bar" },
   { id: "callbacks", label: "Callbacks" },
@@ -248,7 +284,7 @@ const EXAMPLE_TABS = [
 
 const EXAMPLE_CODE: Record<string, string> = {
   "minimal": CODE_MINIMAL,
-  // "subtitles": CODE_SUBTITLES,
+  "audio-mode": CODE_AUDIO_MODE,
   "ctx-menu": CODE_CONTEXT_MENU,
   "ctrl-bar": CODE_CONTROL_BAR,
   "callbacks": CODE_CALLBACKS,
@@ -349,23 +385,29 @@ export default function DemoPage() {
                 <VideoPlayer
                   ref={playerRef}
                   src="https://luniba.com/high_quality_video/index.m3u8"
-                  thumbnailVtt="https://luniba.com/high_quality_video/thumbnails/thumbnails.vtt"
+                  poster="https://luniba.com/high_quality_video/thumbnails/thumbnail.png"
                   controls
-                  autoplay={false}
-                  playbackRates={[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]}
-                  enablePreview={true}
-                  enableHLS={true}
-                  controlBarItems={demoControlBarItems}
-                  contextMenuItems={[
-                    { label: "Add to Watchlist", onClick: () => addEvent("add to watchlist") },
-                  ]}
-                  onTheaterModeChange={(t) => setIsTheater(t)}
-                  onPlay={() => addEvent("play")}
-                  onPause={() => addEvent("pause")}
-                  onEnded={() => addEvent("ended")}
-                  onDurationChange={(d) => addEvent(`duration: ${d.toFixed(1)}s`)}
-                  onBuffering={(b) => addEvent(b ? "buffering…" : "buffering ended")}
-                  onError={(err: VideoError) => addEvent(`error: ${err.code}`)}
+                  options={{
+                    thumbnailVtt: "https://luniba.com/high_quality_video/thumbnails/thumbnails.vtt",
+                    audioSrc: "https://luniba.com/high_quality_video/audio/	testvideo.m3u8",
+                    audioModeLabel: "Switch to Audio",
+                    videoModeLabel: "Switch to Video",
+                    autoplay: false,
+                    playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+                    enablePreview: true,
+                    enableHLS: true,
+                    controlBarItems: demoControlBarItems,
+                    contextMenuItems: [
+                      { label: "Add to Watchlist", onClick: () => addEvent("add to watchlist") },
+                    ],
+                    onTheaterModeChange: (t) => setIsTheater(t),
+                    onPlay: () => addEvent("play"),
+                    onPause: () => addEvent("pause"),
+                    onEnded: () => addEvent("ended"),
+                    onDurationChange: (d) => addEvent(`duration: ${d.toFixed(1)}s`),
+                    onBuffering: (b) => addEvent(b ? "buffering…" : "buffering ended"),
+                    onError: (err: VideoError) => addEvent(`error: ${err.code}`),
+                  }}
                 />
               </div>
 
@@ -438,8 +480,8 @@ export default function DemoPage() {
                 { icon: Layers, title: "VTT Thumbnails", desc: "Sprite-sheet preview on progress bar hover, edge-clamped like YouTube. Zero extra network requests per hover.", color: "#764ba2" },
                 { icon: MonitorPlay, title: "Theater Mode", desc: "Wide-layout theater mode toggle. Fires onTheaterModeChange for layout integration.", color: "#f093fb" },
                 { icon: Radio, title: "Live Streams", desc: "Infinite-duration detection, LIVE badge, GO LIVE button, and L key shortcut to seek to the live edge.", color: "#4facfe" },
-                // { icon: Subtitles, title: "Subtitles", desc: "Multiple WebVTT subtitle tracks with language selection built into the settings menu.", color: "#43e97b" },
-                { icon: Smartphone, title: "Zero Re-renders", desc: "timeupdate and progress events handled via direct DOM mutation. React state only changes on play/pause/volume.", color: "#fa709a" },
+                { icon: Zap, title: "Audio Mode", desc: "One-click audio-only mode with poster artwork. Auto-switches on poor bandwidth. Video element stays mounted — zero re-init cost.", color: "#43e97b" },
+                { icon: Smartphone, title: "Zero Re-renders", desc: "timeupdate and progress events handled via direct DOM mutation. Controls and overlays wrapped in React.memo.", color: "#fa709a" },
               ].map(({ icon: Icon, title, desc, color }) => (
                 <div
                   key={title}
@@ -550,6 +592,14 @@ export default function DemoPage() {
               if hosted on a different origin.
             </p>
           )} */}
+          {activeExTab === "audio-mode" && (
+            <p className="text-sm text-gray-500 mt-4 leading-relaxed">
+              The audio toggle button only appears when <code className="bg-gray-100 px-1 rounded">audioSrc</code> is provided.
+              In audio mode the <code className="bg-gray-100 px-1 rounded">&lt;video&gt;</code> element stays mounted with{" "}
+              <code className="bg-gray-100 px-1 rounded">visibility: hidden</code> — audio keeps playing with no re-initialisation.
+              Auto-switching respects a 60-second cooldown after a manual toggle.
+            </p>
+          )}
           {activeExTab === "ctx-menu" && (
             <p className="text-sm text-gray-500 mt-4 leading-relaxed">
               Custom items are appended below the built-in menu (Play/Pause, Loop, Copy URL, PiP).

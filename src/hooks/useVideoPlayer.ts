@@ -327,10 +327,6 @@ export function useVideoPlayer(
     };
     const handlePlaying = () =>
       setState((prev) => ({ ...prev, isBuffering: false }));
-    const handleProgress = () => {
-      // bufferedRanges are NOT stored in React state — ProgressBar subscribes
-      // to the video element's progress event directly.
-    };
     const handleFullscreenChange = () => {
       const fs = !!(
         document.fullscreenElement || (document as any).webkitFullscreenElement
@@ -355,7 +351,6 @@ export function useVideoPlayer(
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("canplay", handleCanPlay);
     video.addEventListener("playing", handlePlaying);
-    video.addEventListener("progress", handleProgress);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     video.addEventListener("enterpictureinpicture", handlePiPChange);
@@ -373,7 +368,6 @@ export function useVideoPlayer(
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("playing", handlePlaying);
-      video.removeEventListener("progress", handleProgress);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener(
         "webkitfullscreenchange",

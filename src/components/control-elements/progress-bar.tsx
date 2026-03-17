@@ -238,10 +238,6 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
     if (isDraggingRef.current) playerRef.seek(time);
   }, [playerRef, applyThumbnail, getTimeFromClientX, getPxFromClientX, getRect]);
 
-  const handleMouseEnter = useCallback(() => {
-    showTooltip();
-  }, [showTooltip]);
-
   const handleMouseLeave = useCallback(() => {
     hideTooltip();
     stopDragging();
@@ -253,7 +249,6 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
     playerRef.seek(getTimeFromClientX(e.clientX));
   }, [startDragging, getTimeFromClientX, playerRef]);
 
-  const handleMouseUp = useCallback(() => stopDragging(), [stopDragging]);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!isDraggingRef.current) playerRef.seek(getTimeFromClientX(e.clientX));
@@ -281,7 +276,6 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
     playerRef.seek(getTimeFromClientX(e.touches[0].clientX));
   }, [getTimeFromClientX, playerRef]);
 
-  const handleTouchEnd = useCallback(() => stopDragging(), [stopDragging]);
 
   // Release drag if pointer leaves the window
   useEffect(() => {
@@ -313,14 +307,14 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
       ref={containerRef}
       className="progressContainer"
       onMouseMove={handleMouseMove}
-      onMouseEnter={handleMouseEnter}
+      onMouseEnter={showTooltip}
       onMouseLeave={handleMouseLeave}
       onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
+      onMouseUp={stopDragging}
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onTouchEnd={stopDragging}
       onKeyDown={handleKeyDown}
       role="slider"
       aria-label="Video progress"

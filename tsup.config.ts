@@ -26,6 +26,7 @@ export default defineConfig({
       "src/styles/Controls.css",
       "src/styles/ControlElements.css",
       "src/styles/ProgressBar.css",
+      "src/styles/AudioMode.css",
     ].filter(fs.existsSync);
 
     if (cssFiles.length > 0) {

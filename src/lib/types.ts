@@ -118,39 +118,43 @@ export interface ControlBarItem {
   onClick: () => void;
 }
 
-export interface VideoPlayerProps {
-  src: string;
-  poster?: string;
+export interface VideoPlayerOptions {
+  // Playback
   autoplay?: boolean;
   muted?: boolean;
   loop?: boolean;
-  controls?: boolean;
   preload?: "none" | "metadata" | "auto";
   playbackRates?: PlaybackRate[];
-  className?: string;
+  // HLS
   enableHLS?: boolean;
-  enablePreview?: boolean;
-  /**
-   * URL to a WebVTT thumbnail track for sprite-sheet preview on the progress bar.
-   *
-   * The VTT file should map time ranges to sprite-sheet coordinates using the
-   * standard `#xywh=x,y,w,h` fragment format:
-   *
-   * ```
-   * WEBVTT
-   *
-   * 00:00:00.000 --> 00:00:05.000
-   * https://cdn.example.com/thumbs/storyboard0.jpg#xywh=0,0,160,90
-   * ```
-   *
-   * When provided, hovering the progress bar shows a thumbnail instead of
-   * requiring a second video decode. If omitted, only the timestamp tooltip
-   * is shown.
-   */
-  thumbnailVtt?: string;
   hlsConfig?: Partial<HlsConfig>;
+  // Preview
+  enablePreview?: boolean;
+  thumbnailVtt?: string;
+  // UI
+  autoHideControls?: boolean;
+  // Subtitles
   subtitles?: SubtitleTrack[];
   crossOrigin?: "anonymous" | "use-credentials";
+  // Audio mode
+  logo?: string | ReactNode;
+  audioSrc?: string;
+  showAudioButton?: boolean;
+  audioModeIcon?: ReactNode;
+  videoModeIcon?: ReactNode;
+  /**
+   * Custom content shown in audio mode when no `poster` is provided.
+   * Replaces the default animated-gradient + waveform fallback entirely.
+   * The `logo` prop is still rendered on top of this if also provided.
+   */
+  audioModeFallback?: ReactNode;
+  /** Label shown next to the icon when in video mode (click → switches to audio). Default: "Audio" */
+  audioModeLabel?: string;
+  /** Label shown next to the icon when in audio mode (click → switches to video). Default: "Video" */
+  videoModeLabel?: string;
+  defaultAudioMode?: boolean;
+  audioBandwidthThreshold?: number;
+  // Callbacks
   onPlay?: () => void;
   onPause?: () => void;
   onEnded?: () => void;
@@ -159,41 +163,17 @@ export interface VideoPlayerProps {
   onDurationChange?: (duration: number) => void;
   onBuffering?: (isBuffering: boolean) => void;
   onTheaterModeChange?: (isTheater: boolean) => void;
-  /**
-   * Image URL or ReactNode shown as artwork in audio mode.
-   * Priority: `poster` prop → `logo` string/ReactNode → waveform-only.
-   * If a string URL is provided the image is rendered white-normalised (filter invert)
-   * so it stands out on the dark background.
-   */
-  logo?: string | ReactNode;
-  /**
-   * Show the headphones / audio-mode toggle button in the control bar.
-   * @default true
-   */
-  showAudioButton?: boolean;
-  /**
-   * Start the player in audio-only mode on mount.
-   * @default false
-   */
-  defaultAudioMode?: boolean;
-  /**
-   * Bandwidth threshold in **Kbps**. When the measured download speed falls below
-   * this value the player automatically switches to audio mode.
-   * Use the exported `AUDIO_BANDWIDTH_THRESHOLDS` presets for convenience.
-   * Set to `0` to disable automatic switching.
-   * Only applies to HLS streams (where hls.js measures real segment bandwidth).
-   * @default 300  (AUDIO_BANDWIDTH_THRESHOLDS.POOR)
-   */
-  audioBandwidthThreshold?: number;
-  /** Fired whenever audio mode is toggled — either automatically or by the user. */
   onAudioModeChange?: (isAudio: boolean) => void;
+  // Custom
   contextMenuItems?: ContextMenuItem[];
   controlBarItems?: ControlBarItem[];
 }
 
-/** Internal error type used by the HLS module */
-export interface PlayerError {
-  code: string;
-  message: string;
-  details?: unknown;
+export interface VideoPlayerProps {
+  src: string;
+  poster?: string;
+  className?: string;
+  controls?: boolean;
+  options?: VideoPlayerOptions;
 }
+

@@ -12,6 +12,7 @@ export { AUDIO_BANDWIDTH_THRESHOLDS } from "./lib/types";
 // Types
 export type {
   VideoPlayerProps,
+  VideoPlayerOptions,
   VideoPlayerRef,
   PlayerState,
   PlaybackRate,

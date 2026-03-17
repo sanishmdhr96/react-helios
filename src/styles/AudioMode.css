@@ -3,124 +3,125 @@
 .rvp-audio-overlay {
   position: absolute;
   inset: 0;
-  background-color: #0f0f0f;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Sits above the video but Controls comes later in DOM so it paints on top */
-}
-
-.rvp-audio-content {
+  background: #121212;
+  z-index: 1;
+  cursor: pointer;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
-  width: 100%;
-  height: 100%;
-  padding: 0 24px 56px; /* bottom padding reserves space for the control bar */
-  box-sizing: border-box;
+  gap: 14px;
 }
 
-/* ─── Artwork ─────────────────────────────────────────────────────────────── */
+/* ─── Artwork (smaller, centred) ─────────────────────────────────────────── */
 
-.rvp-audio-artwork-wrapper {
+.rvp-audio-artwork-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 1;
-  min-height: 0;
 }
 
 .rvp-audio-artwork {
-  height: 100%;
-  max-height: 240px;
-  aspect-ratio: 1 / 1;
+  width: min(480px, 80%);
+  aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: 8px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.7),
-    0 2px 8px  rgba(0, 0, 0, 0.4);
+  display: block;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
 }
 
-/* Logo: smaller, shown white on the dark background */
+/* ─── "Audio Mode" label ──────────────────────────────────────────────────── */
+
+.rvp-audio-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  user-select: none;
+}
+
+/* ─── Logo fallback ───────────────────────────────────────────────────────── */
+
 .rvp-audio-logo {
-  max-width: 120px;
-  max-height: 64px;
+  max-width: 100px;
+  max-height: 48px;
   object-fit: contain;
   filter: brightness(0) invert(1);
-  opacity: 0.8;
+  opacity: 0.55;
 }
 
 .rvp-audio-logo-node {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.8);
-  max-width: 120px;
-  max-height: 64px;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 100px;
+  max-height: 48px;
 }
 
-/* ─── AUDIO ONLY badge ────────────────────────────────────────────────────── */
+/* ─── Buffering spinner ───────────────────────────────────────────────────── */
 
-.rvp-audio-badge {
+.rvp-audio-buffering-overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.rvp-audio-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rvp-audio-spin 0.75s linear infinite;
+}
+
+@keyframes rvp-audio-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Audio mode toggle button ────────────────────────────────────────────── */
+
+.rvp-audio-toggle-btn {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
-  user-select: none;
+  padding: 5px 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.65);
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
-/* ─── Equalizer waveform ──────────────────────────────────────────────────── */
-
-.rvp-audio-equalizer {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 40px;
-  flex-shrink: 0;
+.rvp-audio-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: #fff;
 }
 
-.rvp-audio-bar {
-  width: 4px;
-  border-radius: 2px 2px 0 0;
-  background: linear-gradient(to top, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.5));
-  height: 5px; /* resting height when paused */
-  transform-origin: bottom;
-  will-change: height;
-  transition: height 0.15s ease;
+.rvp-audio-toggle-btn:active {
+  transform: scale(0.96);
 }
 
-/* ── Animate only while playing ── */
-.rvp-audio-equalizer--playing .rvp-audio-bar {
-  animation: rvp-eq-pulse var(--rvp-eq-dur, 0.9s) ease-in-out
-             calc(var(--bar-index) * 0.045s) infinite alternate;
+.rvp-audio-toggle-btn[aria-pressed="true"] {
+  border-color: rgba(255, 255, 255, 0.65);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
 }
 
-/* Varied durations create a natural, non-repeating wave */
-.rvp-audio-equalizer--playing .rvp-audio-bar:nth-child(3n+1) { --rvp-eq-dur: 0.75s; }
-.rvp-audio-equalizer--playing .rvp-audio-bar:nth-child(3n+2) { --rvp-eq-dur: 1.05s; }
-.rvp-audio-equalizer--playing .rvp-audio-bar:nth-child(3n)   { --rvp-eq-dur: 0.60s; }
-.rvp-audio-equalizer--playing .rvp-audio-bar:nth-child(5n)   { --rvp-eq-dur: 1.20s; }
-.rvp-audio-equalizer--playing .rvp-audio-bar:nth-child(7n)   { --rvp-eq-dur: 0.85s; }
-
-@keyframes rvp-eq-pulse {
-  0%   { height: 5px;  }
-  20%  { height: 28px; }
-  45%  { height: 12px; }
-  70%  { height: 38px; }
-  85%  { height: 18px; }
-  100% { height: 32px; }
-}
-
-/* ─── Responsive ──────────────────────────────────────────────────────────── */
-
-@media (max-width: 480px) {
-  .rvp-audio-artwork { max-height: 130px; }
-  .rvp-audio-equalizer { height: 28px; }
-  .rvp-audio-content { gap: 16px; padding-bottom: 52px; }
+.rvp-audio-toggle-btn[aria-pressed="true"]:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: #fff;
 }
