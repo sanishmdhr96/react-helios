@@ -34,6 +34,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       videoModeLabel,
       defaultAudioMode,
       audioBandwidthThreshold,
+      audioModeSwitchLevel,
+      audioModeRecoveryInterval,
       onPlay,
       onPause,
       onEnded,
@@ -48,6 +50,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     } = options;
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     const { state, ref: playerRef, fullscreenContainerRef } = useVideoPlayer(
@@ -62,6 +65,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         hlsConfig,
         defaultAudioMode,
         audioBandwidthThreshold,
+        audioModeSwitchLevel,
+        audioModeRecoveryInterval,
         onPlay,
         onPause,
         onEnded,
@@ -71,8 +76,24 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         onBuffering,
         onTheaterModeChange,
         onAudioModeChange,
+        audioRef,
+        audioSrc,
       },
     );
+
+    // Always keep activeMediaRef pointing to the playing element so Controls/ProgressBar
+    // can subscribe to the right element's events without React re-renders
+    const activeMediaRef = useRef<HTMLMediaElement | null>(null);
+    React.useLayoutEffect(() => {
+      activeMediaRef.current =
+        state.isAudioMode && audioSrc && audioRef.current
+          ? audioRef.current
+          : videoRef.current;
+    }, [state.isAudioMode, audioSrc]);
+    // initialise synchronously so it's set before first paint
+    if (activeMediaRef.current === null) {
+      activeMediaRef.current = videoRef.current;
+    }
 
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -147,6 +168,16 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           ))}
         </video>
 
+        {/* Hidden audio element — owns playback in audio mode, video is paused */}
+        {audioSrc && (
+          <audio
+            ref={audioRef}
+            preload="none"
+            style={{ display: "none" }}
+            aria-hidden="true"
+          />
+        )}
+
         {/* Audio mode overlay — sits above video, below controls (DOM order) */}
         {state.isAudioMode && (
           <AudioModeOverlay
@@ -160,7 +191,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
 
         {controls && (
           <Controls
-            videoRef={videoRef}
+            videoRef={activeMediaRef}
             playerRef={playerRef}
             playerContainerRef={containerRef}
             playbackRates={playbackRates}
@@ -222,7 +253,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         )}
 
         {/* Buffering spinner */}
-        {state.isBuffering && !state.error && (
+        {state.isBuffering && !state.error && !state.isAudioMode && (
           <div
             style={{
               position: "absolute",

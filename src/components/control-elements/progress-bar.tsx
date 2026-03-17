@@ -7,7 +7,7 @@ import { parseThumbnailVtt, findThumbnailCue } from "../../lib/vtt";
 import type { ThumbnailCue } from "../../lib/vtt";
 
 export interface ProgressBarProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef: React.RefObject<HTMLMediaElement | null>;
   playerRef: VideoPlayerRef;
   enablePreview?: boolean;
   thumbnailVtt?: string;

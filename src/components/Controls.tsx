@@ -10,7 +10,7 @@ import type {
 import { ControlElements } from "./control-elements";
 
 interface ControlsProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef: React.RefObject<HTMLMediaElement | null>;
   playerRef: VideoPlayerRef;
   playerContainerRef: React.RefObject<HTMLElement | null>;
   playbackRates: PlaybackRate[];

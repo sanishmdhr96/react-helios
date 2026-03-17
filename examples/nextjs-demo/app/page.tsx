@@ -5,7 +5,7 @@ import {
   Play, Pause, SkipForward, Volume2, Maximize, PictureInPicture,
   Zap, Smartphone, Radio, Layers, MonitorPlay, Bookmark,
 } from "lucide-react";
-import { VideoPlayer } from "react-helios";
+import { AUDIO_BANDWIDTH_THRESHOLDS, AUDIO_SWITCH_LEVELS, VideoPlayer } from "react-helios";
 import type { VideoError, VideoPlayerRef } from "react-helios";
 import "react-helios/styles";
 
@@ -389,11 +389,13 @@ export default function DemoPage() {
                   controls
                   options={{
                     thumbnailVtt: "https://luniba.com/high_quality_video/thumbnails/thumbnails.vtt",
-                    audioSrc: "https://luniba.com/high_quality_video/audio/	testvideo.m3u8",
+                    audioSrc: "https://luniba.com/high_quality_video/audio/testvideo.m3u8",
                     audioModeLabel: "Switch to Audio",
                     videoModeLabel: "Switch to Video",
                     autoplay: false,
                     playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+                    audioBandwidthThreshold: AUDIO_BANDWIDTH_THRESHOLDS.FAIR,
+                    audioModeSwitchLevel: AUDIO_SWITCH_LEVELS.LOWEST,
                     enablePreview: true,
                     enableHLS: true,
                     controlBarItems: demoControlBarItems,
@@ -401,6 +403,7 @@ export default function DemoPage() {
                       { label: "Add to Watchlist", onClick: () => addEvent("add to watchlist") },
                     ],
                     onTheaterModeChange: (t) => setIsTheater(t),
+                    onAudioModeChange: (isAudio) => addEvent(isAudio ? "→ audio mode (auto)" : "→ video mode (auto)"),
                     onPlay: () => addEvent("play"),
                     onPause: () => addEvent("pause"),
                     onEnded: () => addEvent("ended"),
@@ -480,7 +483,7 @@ export default function DemoPage() {
                 { icon: Layers, title: "VTT Thumbnails", desc: "Sprite-sheet preview on progress bar hover, edge-clamped like YouTube. Zero extra network requests per hover.", color: "#764ba2" },
                 { icon: MonitorPlay, title: "Theater Mode", desc: "Wide-layout theater mode toggle. Fires onTheaterModeChange for layout integration.", color: "#f093fb" },
                 { icon: Radio, title: "Live Streams", desc: "Infinite-duration detection, LIVE badge, GO LIVE button, and L key shortcut to seek to the live edge.", color: "#4facfe" },
-                { icon: Zap, title: "Audio Mode", desc: "One-click audio-only mode with poster artwork. Auto-switches on poor bandwidth. Video element stays mounted — zero re-init cost.", color: "#43e97b" },
+                { icon: Zap, title: "Audio Mode", desc: "One-click audio-only mode with poster artwork. Video pauses completely — zero decode cost. Auto-switches on poor bandwidth or low HLS quality level.", color: "#43e97b" },
                 { icon: Smartphone, title: "Zero Re-renders", desc: "timeupdate and progress events handled via direct DOM mutation. Controls and overlays wrapped in React.memo.", color: "#fa709a" },
               ].map(({ icon: Icon, title, desc, color }) => (
                 <div
@@ -595,9 +598,9 @@ export default function DemoPage() {
           {activeExTab === "audio-mode" && (
             <p className="text-sm text-gray-500 mt-4 leading-relaxed">
               The audio toggle button only appears when <code className="bg-gray-100 px-1 rounded">audioSrc</code> is provided.
-              In audio mode the <code className="bg-gray-100 px-1 rounded">&lt;video&gt;</code> element stays mounted with{" "}
-              <code className="bg-gray-100 px-1 rounded">visibility: hidden</code> — audio keeps playing with no re-initialisation.
-              Auto-switching respects a 60-second cooldown after a manual toggle.
+              In audio mode the <code className="bg-gray-100 px-1 rounded">&lt;video&gt;</code> element is paused (zero decode cost) and a lightweight{" "}
+              <code className="bg-gray-100 px-1 rounded">&lt;audio&gt;</code> element takes over — same resources as a music app.
+              Auto-switching uses both bandwidth sampling and HLS quality level detection. A 60-second cooldown prevents re-triggering after a manual toggle.
             </p>
           )}
           {activeExTab === "ctx-menu" && (

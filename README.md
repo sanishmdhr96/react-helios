@@ -1,6 +1,6 @@
 # react-helios
 
-Production-grade React video player with HLS streaming, audio mode, adaptive quality selection, live stream support, subtitle tracks, VTT sprite sheet thumbnail preview, Picture-in-Picture, and full keyboard control.
+Production-grade React video player with HLS streaming, zero-cost audio mode, adaptive quality selection, live stream support, subtitle tracks, VTT sprite sheet thumbnail preview, Picture-in-Picture, and full keyboard control.
 
 ## Installation
 
@@ -60,7 +60,7 @@ On Safari the browser's native HLS engine is used. A **LIVE** badge and **GO LIV
 
 ## Audio Mode
 
-Audio mode hides the video, shows the poster artwork, and keeps the audio stream playing — useful when bandwidth is poor or the user wants to background the content.
+Audio mode pauses the video element completely (stopping all video decoding), shows the poster artwork, and hands playback off to a lightweight `<audio>` element — so the player uses roughly the same CPU/GPU as a music app instead of a playing video.
 
 ```tsx
 <VideoPlayer
@@ -79,9 +79,13 @@ Audio mode hides the video, shows the poster artwork, and keeps the audio stream
 
 The audio toggle button only appears in the control bar when `audioSrc` is provided. Custom icons can be passed via `audioModeIcon` / `videoModeIcon`.
 
-### Automatic bandwidth switching
+When switching between modes, position, volume, and playback rate are synced automatically — the listener hears no gap.
 
-For HLS streams the player monitors bandwidth and switches to audio mode automatically when conditions drop below a threshold:
+### Automatic switching
+
+The player uses two independent signals to detect poor conditions and switch to audio mode automatically. Either one firing is enough.
+
+**Bandwidth-based** — measures the actual download speed of each HLS fragment and switches when the rolling average drops below a threshold:
 
 ```tsx
 import { AUDIO_BANDWIDTH_THRESHOLDS } from "react-helios";
@@ -89,8 +93,8 @@ import { AUDIO_BANDWIDTH_THRESHOLDS } from "react-helios";
 <VideoPlayer
   src="https://example.com/stream.m3u8"
   options={{
-    audioBandwidthThreshold: AUDIO_BANDWIDTH_THRESHOLDS.POOR, // 300 Kbps (default)
-    // audioBandwidthThreshold: 0,  // disable automatic switching
+    audioBandwidthThreshold: AUDIO_BANDWIDTH_THRESHOLDS.FAIR, // recommended
+    // audioBandwidthThreshold: 0,  // disable bandwidth-based switching
   }}
 />
 ```
@@ -98,11 +102,43 @@ import { AUDIO_BANDWIDTH_THRESHOLDS } from "react-helios";
 | Preset | Kbps | Typical connection |
 |--------|------|--------------------|
 | `EXTREME` | 100 | 2G / Edge |
-| `POOR` | 300 | Slow 3G ← **default** |
-| `FAIR` | 700 | 3G |
-| `GOOD` | 1500 | 4G / Wi-Fi |
+| `POOR` | 300 | Slow 3G |
+| `FAIR` | 800 | Marginal 3G ← **recommended** |
+| `GOOD` | 1500 | Weak 4G / congested Wi-Fi |
 
-After the user manually toggles audio mode a 60-second cooldown suppresses automatic switching so the player respects their choice.
+**Level-based** — switches when HLS.js drops to a specific quality level (its own ABR algorithm already does the hard work):
+
+```tsx
+import { AUDIO_SWITCH_LEVELS } from "react-helios";
+
+<VideoPlayer
+  src="https://example.com/stream.m3u8"
+  options={{
+    audioModeSwitchLevel: AUDIO_SWITCH_LEVELS.LOWEST, // switch at lowest quality level
+  }}
+/>
+```
+
+| Preset | Value | Meaning |
+|--------|-------|---------|
+| `LOWEST` | 0 | Switch when HLS.js is at the lowest available quality |
+| `SECOND_LOWEST` | 1 | Switch one level above the lowest |
+| `DISABLED` | -1 | Disable level-based switching |
+
+Using **both together** is the most reliable approach:
+
+```tsx
+<VideoPlayer
+  src="https://example.com/stream.m3u8"
+  options={{
+    audioSrc: "https://example.com/audio-only.m3u8",
+    audioBandwidthThreshold: AUDIO_BANDWIDTH_THRESHOLDS.FAIR,
+    audioModeSwitchLevel: AUDIO_SWITCH_LEVELS.LOWEST,
+  }}
+/>
+```
+
+After the user manually toggles audio mode a 60-second cooldown suppresses automatic switching. The player also probes for bandwidth recovery every 30 seconds while in auto-switched audio mode (configurable via `audioModeRecoveryInterval`).
 
 ## Thumbnail Preview
 
@@ -199,7 +235,9 @@ To disable the preview entirely:
 | `videoModeIcon` | `ReactNode` | built-in video icon | Icon shown when in audio mode (click → video) |
 | `audioModeFallback` | `ReactNode` | — | Custom content shown in audio mode when no `poster` is provided |
 | `logo` | `string \| ReactNode` | — | Logo shown in audio mode when no `poster` or `audioModeFallback` is provided |
-| `audioBandwidthThreshold` | `number` | `300` | Kbps — auto-switch to audio mode below this bandwidth. `0` = disabled (HLS only) |
+| `audioBandwidthThreshold` | `number` | `300` | Kbps — switch when per-fragment bandwidth average drops below this. `0` = disabled (HLS only) |
+| `audioModeSwitchLevel` | `number` | — | HLS quality level index — switch when HLS.js drops to this level or below. `0` = lowest. `-1` = disabled |
+| `audioModeRecoveryInterval` | `number` | `30000` | Ms between recovery probes while in auto-switched audio mode |
 
 ### `options` — Callbacks
 
@@ -407,7 +445,7 @@ import type {
   ControlBarItem,
 } from "react-helios";
 
-import { AUDIO_BANDWIDTH_THRESHOLDS } from "react-helios";
+import { AUDIO_BANDWIDTH_THRESHOLDS, AUDIO_SWITCH_LEVELS } from "react-helios";
 
 // VTT utilities (useful for server-side pre-parsing or custom UIs)
 import { parseThumbnailVtt, findThumbnailCue } from "react-helios";
@@ -525,11 +563,11 @@ if (cue) {
 The player is architected to produce **zero React re-renders during playback**:
 
 - `timeupdate` and `progress` events are handled by direct DOM mutation (refs), not React state.
-- `ProgressBar` and `TimeDisplay` self-subscribe to the video element — the parent tree never re-renders on seek or time change.
+- `ProgressBar` and `TimeDisplay` self-subscribe to the active media element — the parent tree never re-renders on seek or time change.
 - `Controls` and `AudioModeOverlay` are wrapped in `React.memo` — they only re-render when their own props change, not when unrelated state (buffering, errors) updates.
 - VTT sprite thumbnails are looked up via binary search (O(log n)) and rendered via CSS `background-position` — no hidden `<video>` element, no canvas, no network requests per hover.
 - Buffered ranges are the only state that triggers a re-render (fires every few seconds during buffering, not 60× per second).
-- In audio mode the `<video>` element stays mounted with `visibility: hidden` — audio keeps playing without any re-initialisation cost on toggle.
+- In audio mode the `<video>` element is **paused** — the browser stops decoding frames entirely. A lightweight `<audio>` element takes over with `preload="none"` (no network cost at startup). The `<audio>` element only loads its source the first time the user switches to audio mode.
 
 ## Project Structure
 

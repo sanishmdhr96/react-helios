@@ -4,29 +4,57 @@ import type { HlsConfig } from "hls.js";
 /**
  * Preset bandwidth thresholds (Kbps) for automatic audio mode switching.
  *
- * | Preset    | Kbps | Typical connection      |
- * |-----------|------|-------------------------|
- * | EXTREME   |  100 | 2G / Edge               |
- * | POOR      |  300 | Slow 3G  ← **default**  |
- * | FAIR      |  700 | 3G                      |
- * | GOOD      | 1500 | 4G / Wi-Fi              |
+ * | Preset    | Kbps | Typical connection             |
+ * |-----------|------|--------------------------------|
+ * | EXTREME   |  100 | 2G / Edge                      |
+ * | POOR      |  300 | Slow 3G                        |
+ * | FAIR      |  800 | Marginal 3G ← **recommended**  |
+ * | GOOD      | 1500 | Weak 4G / congested Wi-Fi      |
  *
  * Pass any of these (or a custom number) as `audioBandwidthThreshold`.
- * Set to `0` to disable automatic switching entirely.
+ * Set to `0` to disable bandwidth-based switching entirely.
  *
  * @example
  * import { AUDIO_BANDWIDTH_THRESHOLDS } from "react-helios";
- * <VideoPlayer audioBandwidthThreshold={AUDIO_BANDWIDTH_THRESHOLDS.FAIR} ... />
+ * <VideoPlayer options={{ audioBandwidthThreshold: AUDIO_BANDWIDTH_THRESHOLDS.FAIR }} />
  */
 export const AUDIO_BANDWIDTH_THRESHOLDS = {
   /** < 100 Kbps — very poor, 2G / Edge */
   EXTREME: 100,
-  /** < 300 Kbps — poor, slow 3G (default) */
+  /** < 300 Kbps — poor, slow 3G */
   POOR: 300,
-  /** < 700 Kbps — fair, 3G */
-  FAIR: 700,
-  /** < 1500 Kbps — decent, 4G / Wi-Fi */
+  /** < 800 Kbps — marginal 3G ← **recommended default** */
+  FAIR: 800,
+  /** < 1500 Kbps — weak 4G / congested Wi-Fi */
   GOOD: 1500,
+} as const;
+
+/**
+ * Preset HLS quality level indices for automatic audio mode switching.
+ *
+ * When HLS.js drops to this level or below (due to poor bandwidth), the player
+ * automatically switches to audio mode. Level `0` is always the lowest quality
+ * available in the manifest.
+ *
+ * | Preset         | Value | Meaning                                       |
+ * |----------------|-------|-----------------------------------------------|
+ * | LOWEST         |   0   | Switch when at the very lowest quality ← **recommended** |
+ * | SECOND_LOWEST  |   1   | Switch one level above the lowest             |
+ * | DISABLED       |  -1   | Disable level-based switching entirely        |
+ *
+ * Works alongside `audioBandwidthThreshold` — whichever fires first wins.
+ *
+ * @example
+ * import { AUDIO_SWITCH_LEVELS } from "react-helios";
+ * <VideoPlayer options={{ audioModeSwitchLevel: AUDIO_SWITCH_LEVELS.LOWEST }} />
+ */
+export const AUDIO_SWITCH_LEVELS = {
+  /** Switch when HLS.js is at the lowest available quality (recommended default). */
+  LOWEST: 0,
+  /** Switch when HLS.js drops to the second-lowest quality. */
+  SECOND_LOWEST: 1,
+  /** Disable level-based auto-switching. */
+  DISABLED: -1,
 } as const;
 
 export interface BufferedRange {
@@ -153,7 +181,24 @@ export interface VideoPlayerOptions {
   /** Label shown next to the icon when in audio mode (click → switches to video). Default: "Video" */
   videoModeLabel?: string;
   defaultAudioMode?: boolean;
+  /**
+   * Kbps — switch to audio mode when rolling average bandwidth drops below this value.
+   * `0` disables bandwidth-based switching. Default: `300` (slow 3G).
+   * Works alongside `audioModeSwitchLevel` — whichever fires first wins.
+   */
   audioBandwidthThreshold?: number;
+  /**
+   * HLS quality level index — switch to audio mode when HLS.js drops to this level or below.
+   * `0` = lowest quality (recommended default). `-1` disables level-based switching.
+   * Works alongside `audioBandwidthThreshold` — whichever fires first wins.
+   */
+  audioModeSwitchLevel?: number;
+  /**
+   * Milliseconds between automatic recovery probes while in auto-switched audio mode.
+   * The player briefly resumes video loading to sample bandwidth, then switches back
+   * to video if conditions have improved. Default: `30000` (30 seconds).
+   */
+  audioModeRecoveryInterval?: number;
   // Callbacks
   onPlay?: () => void;
   onPause?: () => void;

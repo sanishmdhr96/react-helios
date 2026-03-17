@@ -4,7 +4,7 @@ import { memo, useRef, useEffect } from "react";
 import { formatTime } from "../../lib/format";
 
 export interface TimeDisplayProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef: React.RefObject<HTMLMediaElement | null>;
   isLive?: boolean;
 }
 

@@ -22,8 +22,12 @@ interface UseVideoPlayerOptions {
   enableHLS?: boolean;
   hlsConfig?: Partial<HlsConfig>;
   defaultAudioMode?: boolean;
-  /** Kbps — HLS only. 0 = disabled. @default 300 */
+  /** Kbps — switch to audio mode below this bandwidth. 0 = disabled. @default 300 */
   audioBandwidthThreshold?: number;
+  /** HLS quality level — switch to audio mode at this level or below. -1 = disabled. @default undefined */
+  audioModeSwitchLevel?: number;
+  /** Ms between recovery probes while auto-switched to audio mode. @default 30000 */
+  audioModeRecoveryInterval?: number;
   onPlay?: () => void;
   onPause?: () => void;
   onEnded?: () => void;
@@ -33,6 +37,8 @@ interface UseVideoPlayerOptions {
   onBuffering?: (isBuffering: boolean) => void;
   onTheaterModeChange?: (isTheater: boolean) => void;
   onAudioModeChange?: (isAudio: boolean) => void;
+  audioRef?: React.RefObject<HTMLAudioElement | null>;
+  audioSrc?: string;
 }
 
 const DEFAULT_STATE: PlayerState = {
@@ -81,11 +87,26 @@ export function useVideoPlayer(
   // ── Audio mode / bandwidth detection ─────────────────────────────────────
   /** Rolling window of the last 5 HLS bandwidth samples (Kbps). */
   const bwSamplesRef = useRef<number[]>([]);
+  /** Counts loaded fragments — level-based switch is suppressed until ≥ 3. */
+  const fragCountRef = useRef<number>(0);
   /** True when the current audio-mode switch was triggered automatically. */
   const autoSwitchedRef = useRef<boolean>(false);
   /** While true, auto-detection is suppressed (user just manually toggled). */
   const manualCooldownActiveRef = useRef<boolean>(false);
   const manualCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Timer that fires the next bandwidth recovery probe while in auto audio mode. */
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** True while a recovery probe fragment load is in-flight. */
+  const recoveryProbePendingRef = useRef<boolean>(false);
+
+  /** Returns the currently-active media element (audio in audio mode, video otherwise). */
+  const getActiveMedia = useCallback((): HTMLMediaElement | null => {
+    const opts = optionsRef.current;
+    if (stateRef.current.isAudioMode && opts.audioSrc && opts.audioRef?.current) {
+      return opts.audioRef.current;
+    }
+    return videoRef.current;
+  }, [videoRef]);
 
   // ─── Source / HLS initialisation ────────────────────────────────────────────
   useEffect(() => {
@@ -100,12 +121,18 @@ export function useVideoPlayer(
 
     // Reset bandwidth samples and cooldown for the new source
     bwSamplesRef.current = [];
+    fragCountRef.current = 0;
     autoSwitchedRef.current = false;
     manualCooldownActiveRef.current = false;
     if (manualCooldownTimerRef.current) {
       clearTimeout(manualCooldownTimerRef.current);
       manualCooldownTimerRef.current = null;
     }
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+    recoveryProbePendingRef.current = false;
 
     setState((prev) => ({
       ...prev,
@@ -159,20 +186,73 @@ export function useVideoPlayer(
 
         hls.on(Events.LEVEL_SWITCHED, (_, data) => {
           setState((prev) => ({ ...prev, currentQualityLevel: data.level }));
+
+          // ── Level-based auto-switch ──────────────────────────────────────
+          const opts = optionsRef.current;
+          const switchLevel = opts.audioModeSwitchLevel;
+          if (
+            switchLevel === undefined ||
+            switchLevel < 0 ||
+            !opts.audioSrc ||
+            manualCooldownActiveRef.current ||
+            fragCountRef.current < 3 // ignore initial level ramp-up on page load
+          ) return;
+
+          setState((prev) => {
+            if (!prev.isAudioMode && data.level <= switchLevel) {
+              autoSwitchedRef.current = true;
+              optionsRef.current.onAudioModeChange?.(true);
+              return { ...prev, isAudioMode: true };
+            }
+            return prev;
+          });
         });
 
-        hls.on(Events.FRAG_LOADED, () => {
-          const threshold = optionsRef.current.audioBandwidthThreshold ?? 300;
+        hls.on(Events.FRAG_LOADED, (_, fragData) => {
+          const opts = optionsRef.current;
+
+          // Only auto-switch if an audio source is actually provided
+          if (!opts.audioSrc) return;
+
+          fragCountRef.current += 1;
+
+          // ── Measure actual per-fragment bandwidth ────────────────────────
+          // hls.bandwidthEstimate is an EWMA that reacts slowly — if the page
+          // loaded on fast WiFi the estimate stays high for many fragments.
+          // Instead measure each fragment directly: bytes × 8 / load-time(ms) = Kbps
+          const loadMs = fragData.stats.loading.end - fragData.stats.loading.start;
+          const fragBwKbps = loadMs > 0 && fragData.stats.total > 0
+            ? (fragData.stats.total * 8) / loadMs
+            : 0;
+
+          const threshold = opts.audioBandwidthThreshold ?? 300;
+
+          // ── Recovery probe path ──────────────────────────────────────────
+          if (recoveryProbePendingRef.current) {
+            recoveryProbePendingRef.current = false;
+            if (fragBwKbps > 0 && threshold && fragBwKbps > threshold * 1.5) {
+              // Bandwidth has recovered — switch back to video
+              autoSwitchedRef.current = false;
+              hls.startLoad();
+              optionsRef.current.onAudioModeChange?.(false);
+              setState((prev) => ({ ...prev, isAudioMode: false }));
+            } else {
+              // Still poor — stop loading, schedule next probe
+              hls.stopLoad();
+              scheduleRecoveryProbe();
+            }
+            return;
+          }
+
+          // ── Normal bandwidth-based auto-switch ───────────────────────────
           if (!threshold) return; // 0 = disabled
           if (manualCooldownActiveRef.current) return;
-
-          const bwKbps = hls.bandwidthEstimate / 1000; // hls.js EWM estimate
-          if (bwKbps <= 0) return;
+          if (fragBwKbps <= 0) return;
 
           const samples = bwSamplesRef.current;
-          samples.push(bwKbps);
+          samples.push(fragBwKbps);
           if (samples.length > 5) samples.shift();
-          if (samples.length < 3) return; // wait for enough data
+          if (samples.length < 2) return; // need at least 2 samples to avoid noise
 
           const avg = samples.reduce((s, v) => s + v, 0) / samples.length;
 
@@ -182,15 +262,20 @@ export function useVideoPlayer(
               optionsRef.current.onAudioModeChange?.(true);
               return { ...prev, isAudioMode: true };
             }
-            // Switch back only if we were the one who auto-switched
-            if (prev.isAudioMode && autoSwitchedRef.current && avg > threshold * 1.5) {
-              autoSwitchedRef.current = false;
-              optionsRef.current.onAudioModeChange?.(false);
-              return { ...prev, isAudioMode: false };
-            }
             return prev;
           });
         });
+
+        // Helper: schedule a recovery bandwidth probe
+        const scheduleRecoveryProbe = () => {
+          if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+          const interval = optionsRef.current.audioModeRecoveryInterval ?? 30_000;
+          recoveryTimerRef.current = setTimeout(() => {
+            if (!autoSwitchedRef.current || !stateRef.current.isAudioMode) return;
+            recoveryProbePendingRef.current = true;
+            hls.startLoad(); // loads one fragment → FRAG_LOADED fires → we evaluate
+          }, interval);
+        };
 
         const MAX_RETRIES = 3;
         hls.on(Events.ERROR, (_, data) => {
@@ -255,6 +340,18 @@ export function useVideoPlayer(
         clearTimeout(manualCooldownTimerRef.current);
         manualCooldownTimerRef.current = null;
       }
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+      recoveryProbePendingRef.current = false;
+      // Reset audio element when source changes
+      const audio = optionsRef.current.audioRef?.current;
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
     };
   }, [src, videoRef]);
 
@@ -279,8 +376,8 @@ export function useVideoPlayer(
       optionsRef.current.onEnded?.();
     };
     const handleTimeUpdate = () => {
-      // currentTime is NOT stored in React state — ProgressBar and TimeDisplay
-      // subscribe to the video element directly, eliminating re-renders on every tick.
+      // In audio mode the audio element drives time updates instead
+      if (stateRef.current.isAudioMode && optionsRef.current.audioSrc) return;
       optionsRef.current.onTimeUpdate?.(video.currentTime);
     };
     const handleDurationChange = () => {
@@ -378,60 +475,179 @@ export function useVideoPlayer(
     };
   }, [videoRef]); // stable – options accessed via optionsRef
 
+  // ─── Audio element event listeners ──────────────────────────────────────────
+  useEffect(() => {
+    const audio = optionsRef.current.audioRef?.current;
+    if (!audio || !optionsRef.current.audioSrc) return;
+
+    const handlePlay = () => {
+      setState((prev) => ({ ...prev, isPlaying: true }));
+      optionsRef.current.onPlay?.();
+    };
+    const handlePause = () => {
+      setState((prev) => ({ ...prev, isPlaying: false }));
+      optionsRef.current.onPause?.();
+    };
+    const handleEnded = () => {
+      setState((prev) => ({ ...prev, isPlaying: false }));
+      optionsRef.current.onEnded?.();
+    };
+    const handleWaiting = () => {
+      setState((prev) => ({ ...prev, isBuffering: true }));
+      optionsRef.current.onBuffering?.(true);
+    };
+    const handleCanPlay = () => {
+      setState((prev) => ({ ...prev, isBuffering: false }));
+      optionsRef.current.onBuffering?.(false);
+    };
+    const handlePlaying = () =>
+      setState((prev) => ({ ...prev, isBuffering: false }));
+    const handleTimeUpdate = () => {
+      if (!stateRef.current.isAudioMode) return;
+      optionsRef.current.onTimeUpdate?.(audio.currentTime);
+    };
+    const handleDurationChange = () => {
+      const dur = audio.duration;
+      if (isFinite(dur)) {
+        setState((prev) => ({ ...prev, duration: dur }));
+        optionsRef.current.onDurationChange?.(dur);
+      }
+    };
+    const handleError = () => {
+      const err: VideoError = { code: "MEDIA_ERR_NETWORK", message: "Audio source failed to load." };
+      setState((prev) => ({ ...prev, error: err }));
+      optionsRef.current.onError?.(err);
+    };
+
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("waiting", handleWaiting);
+    audio.addEventListener("canplay", handleCanPlay);
+    audio.addEventListener("playing", handlePlaying);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("durationchange", handleDurationChange);
+    audio.addEventListener("error", handleError);
+
+    return () => {
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("waiting", handleWaiting);
+      audio.removeEventListener("canplay", handleCanPlay);
+      audio.removeEventListener("playing", handlePlaying);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("durationchange", handleDurationChange);
+      audio.removeEventListener("error", handleError);
+    };
+  }, [src]); // re-bind when content changes
+
+  // ─── Sync between video and audio on mode switch ─────────────────────────────
+  useEffect(() => {
+    const opts = optionsRef.current;
+    const video = videoRef.current;
+    const audio = opts.audioRef?.current;
+    if (!video || !audio || !opts.audioSrc) return;
+
+    if (state.isAudioMode) {
+      // Entering audio mode — pause video (stops decoding), hand off to audio element
+      const pos = video.currentTime;
+      const wasPlaying = !video.paused;
+      video.pause();
+      // Stop HLS from buffering video in the background — saves bandwidth for audio
+      hlsRef.current?.stopLoad();
+      if (!audio.getAttribute("src")) audio.src = opts.audioSrc;
+      audio.currentTime = pos;
+      audio.volume = video.volume;
+      audio.muted = video.muted;
+      audio.playbackRate = video.playbackRate;
+      if (wasPlaying) audio.play().catch(() => {});
+      // Schedule bandwidth recovery probes if this was an automatic switch
+      if (autoSwitchedRef.current) {
+        if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+        const interval = opts.audioModeRecoveryInterval ?? 30_000;
+        recoveryTimerRef.current = setTimeout(() => {
+          if (!autoSwitchedRef.current || !stateRef.current.isAudioMode) return;
+          recoveryProbePendingRef.current = true;
+          hlsRef.current?.startLoad();
+        }, interval);
+      }
+    } else {
+      // Leaving audio mode — hand off back to video element
+      const pos = audio.currentTime;
+      const wasPlaying = !audio.paused;
+      audio.pause();
+      // Cancel any pending recovery probe
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+      recoveryProbePendingRef.current = false;
+      // Resume HLS video loading
+      hlsRef.current?.startLoad();
+      video.currentTime = pos;
+      video.volume = audio.volume;
+      if (wasPlaying) video.play().catch(() => {});
+    }
+  }, [state.isAudioMode, videoRef]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ─── Control methods (all stable via useCallback with empty or minimal deps) ─
   const play = useCallback(async () => {
-    const video = videoRef.current;
-    if (!video) return;
+    const media = getActiveMedia();
+    if (!media) return;
     try {
-      await video.play();
+      await media.play();
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError")
         console.error("[player] play() failed:", err);
     }
-  }, [videoRef]);
+  }, [getActiveMedia]);
 
   const pause = useCallback(() => {
-    videoRef.current?.pause();
-  }, [videoRef]);
+    getActiveMedia()?.pause();
+  }, [getActiveMedia]);
 
   const seek = useCallback(
     (time: number) => {
-      const video = videoRef.current;
-      if (!video) return;
-      video.currentTime = Math.max(0, Math.min(time, video.duration || time));
+      const media = getActiveMedia();
+      if (!media) return;
+      media.currentTime = Math.max(0, Math.min(time, media.duration || time));
     },
-    [videoRef],
+    [getActiveMedia],
   );
 
   const setVolume = useCallback(
     (volume: number) => {
-      const video = videoRef.current;
-      if (!video) return;
+      const media = getActiveMedia();
+      if (!media) return;
       const v = Math.max(0, Math.min(volume, 1));
       if (v > 0) lastVolumeRef.current = v;
-      video.volume = v;
-      video.muted = v === 0;
+      media.volume = v;
+      media.muted = v === 0;
     },
-    [videoRef],
+    [getActiveMedia],
   );
 
   const toggleMute = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.muted || video.volume === 0) {
+    const media = getActiveMedia();
+    if (!media) return;
+    if (media.muted || media.volume === 0) {
       const restore = lastVolumeRef.current > 0 ? lastVolumeRef.current : 1;
-      video.volume = restore;
-      video.muted = false;
+      media.volume = restore;
+      media.muted = false;
     } else {
-      lastVolumeRef.current = video.volume;
-      video.muted = true;
+      lastVolumeRef.current = media.volume;
+      media.muted = true;
     }
-  }, [videoRef]);
+  }, [getActiveMedia]);
 
   const setPlaybackRate = useCallback(
     (rate: PlaybackRate) => {
+      // Apply to both so rate is preserved across mode switches
       const video = videoRef.current;
       if (video) video.playbackRate = rate;
+      const audio = optionsRef.current.audioRef?.current;
+      if (audio) audio.playbackRate = rate;
     },
     [videoRef],
   );
@@ -510,16 +726,16 @@ export function useVideoPlayer(
   }, []);
 
   const getState = useCallback((): PlayerState => {
-    const video = videoRef.current;
-    const currentTime = video?.currentTime ?? 0;
+    const media = getActiveMedia();
+    const currentTime = media?.currentTime ?? 0;
     const bufferedRanges: import("../lib/types").BufferedRange[] = [];
-    if (video) {
-      for (let i = 0; i < video.buffered.length; i++) {
-        bufferedRanges.push({ start: video.buffered.start(i), end: video.buffered.end(i) });
+    if (media) {
+      for (let i = 0; i < media.buffered.length; i++) {
+        bufferedRanges.push({ start: media.buffered.start(i), end: media.buffered.end(i) });
       }
     }
     return { ...stateRef.current, currentTime, bufferedRanges };
-  }, [videoRef]);
+  }, [getActiveMedia]);
 
   const getVideoElement = useCallback(
     (): HTMLVideoElement | null => videoRef.current ?? null,
