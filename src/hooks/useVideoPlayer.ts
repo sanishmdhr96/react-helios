@@ -69,6 +69,11 @@ export function useVideoPlayer(
   const fullscreenContainerRef = useRef<HTMLElement | null>(null);
   const lastVolumeRef = useRef<number>(1);
   const networkRetriesRef = useRef<number>(0);
+  const mediaErrorRetriesRef = useRef<number>(0);
+  // Tracks the src that was active when isAudioMode last changed, so the audio
+  // mode sync effect can tell the difference between a real mode toggle and a
+  // spurious false reset that happens when src changes mid-audio-mode.
+  const audioModeSrcRef = useRef<string>(src);
 
   // ── Stable refs so effects never need options/state in their dep arrays ──────
   const optionsRef = useRef(options);
@@ -113,11 +118,16 @@ export function useVideoPlayer(
     const video = videoRef.current;
     if (!video) return;
 
+    // Guards all async HLS callbacks — set to true in cleanup so stale events
+    // (e.g. from a previous src load still in-flight) never touch the new state.
+    let destroyed = false;
+
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
     networkRetriesRef.current = 0;
+    mediaErrorRetriesRef.current = 0;
 
     // Reset bandwidth samples and cooldown for the new source
     bwSamplesRef.current = [];
@@ -139,14 +149,18 @@ export function useVideoPlayer(
       currentTime: 0,
       duration: 0,
       error: null,
-      isBuffering: false,
+      isPlaying: false,
+      // Keep isBuffering true while the manifest loads — the video `waiting` event
+      // only fires once buffering starts, which is after the manifest is parsed.
+      // Without this, the player shows a blank/frozen frame with no spinner.
+      isBuffering: !!src,
       isLive: false,
       qualityLevels: [],
       currentQualityLevel: -1,
       isAudioMode: optionsRef.current.defaultAudioMode ?? false,
     }));
 
-    if (!src) return;
+    if (!src) return () => { destroyed = true; };
 
     const opts = optionsRef.current;
 
@@ -175,6 +189,7 @@ export function useVideoPlayer(
         hls.loadSource(src);
 
         hls.on(Events.MANIFEST_PARSED, (_, data) => {
+          if (destroyed) return;
           const levels: HLSQualityLevel[] = buildQualityLevels(data.levels);
           setState((prev) => ({
             ...prev,
@@ -185,6 +200,7 @@ export function useVideoPlayer(
         });
 
         hls.on(Events.LEVEL_SWITCHED, (_, data) => {
+          if (destroyed) return;
           setState((prev) => ({ ...prev, currentQualityLevel: data.level }));
 
           // ── Level-based auto-switch ──────────────────────────────────────
@@ -209,6 +225,11 @@ export function useVideoPlayer(
         });
 
         hls.on(Events.FRAG_LOADED, (_, fragData) => {
+          if (destroyed) return;
+          // Reset media-error retry counter on any successful fragment load
+          // so a later isolated seek/parse error still gets recovery attempts.
+          mediaErrorRetriesRef.current = 0;
+
           const opts = optionsRef.current;
 
           // Only auto-switch if an audio source is actually provided
@@ -279,6 +300,7 @@ export function useVideoPlayer(
 
         const MAX_RETRIES = 3;
         hls.on(Events.ERROR, (_, data) => {
+          if (destroyed) return;
           if (!data.fatal) {
             console.warn("[hls] non-fatal:", data.details);
             return;
@@ -305,8 +327,22 @@ export function useVideoPlayer(
               }
               break;
             case HLS.ErrorTypes.MEDIA_ERROR:
-              console.warn("[hls] media error – recovering");
-              hls.recoverMediaError();
+              if (mediaErrorRetriesRef.current < MAX_RETRIES) {
+                mediaErrorRetriesRef.current += 1;
+                console.warn(
+                  `[hls] media error – recovery attempt ${mediaErrorRetriesRef.current}/${MAX_RETRIES}`,
+                );
+                hls.recoverMediaError();
+              } else {
+                hls.destroy();
+                hlsRef.current = null;
+                const mediaErr: VideoError = {
+                  code: "HLS_FATAL_ERROR",
+                  message: "An unrecoverable media error occurred.",
+                };
+                setState((prev) => ({ ...prev, error: mediaErr }));
+                optionsRef.current.onError?.(mediaErr);
+              }
               break;
             default: {
               hls.destroy();
@@ -332,6 +368,7 @@ export function useVideoPlayer(
     }
 
     return () => {
+      destroyed = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -401,6 +438,11 @@ export function useVideoPlayer(
     const handleError = () => {
       const e = video.error;
       if (!e) return;
+      // When HLS.js is managing the stream it handles all error recovery via its
+      // own Events.ERROR handler. The native video `error` event is a downstream
+      // side-effect of those same failures — propagating it here would show the
+      // error overlay before hls.js has a chance to call recoverMediaError().
+      if (hlsRef.current) return;
       const codeMap: Partial<Record<number, VideoErrorCode>> = {
         1: "MEDIA_ERR_ABORTED",
         2: "MEDIA_ERR_NETWORK",
@@ -549,6 +591,16 @@ export function useVideoPlayer(
     const audio = opts.audioRef?.current;
     if (!video || !audio || !opts.audioSrc) return;
 
+    // When src changes, the src effect resets isAudioMode → false as part of a
+    // full state reset. That triggers this effect, but we must NOT perform the
+    // audio→video handoff in that case: the new HLS instance is still loading its
+    // manifest and calling startLoad() / setting currentTime here would interrupt it.
+    if (audioModeSrcRef.current !== src) {
+      audioModeSrcRef.current = src;
+      return;
+    }
+    audioModeSrcRef.current = src;
+
     if (state.isAudioMode) {
       // Entering audio mode — pause video (stops decoding), hand off to audio element
       const pos = video.currentTime;
@@ -589,7 +641,7 @@ export function useVideoPlayer(
       video.volume = audio.volume;
       if (wasPlaying) video.play().catch(() => {});
     }
-  }, [state.isAudioMode, videoRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.isAudioMode, videoRef, src]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Control methods (all stable via useCallback with empty or minimal deps) ─
   const play = useCallback(async () => {

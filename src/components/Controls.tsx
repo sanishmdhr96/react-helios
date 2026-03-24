@@ -232,6 +232,7 @@ export const Controls = memo<ControlsProps>(function Controls({
           playerRef={playerRef}
           enablePreview={enablePreview}
           thumbnailVtt={thumbnailVtt}
+          isAudioMode={isAudioMode}
         />
 
         <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>

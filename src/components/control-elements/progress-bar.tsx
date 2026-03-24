@@ -11,6 +11,7 @@ export interface ProgressBarProps {
   playerRef: VideoPlayerRef;
   enablePreview?: boolean;
   thumbnailVtt?: string;
+  isAudioMode?: boolean;
 }
 
 const ProgressBar: React.FC<ProgressBarProps> = memo(({
@@ -18,6 +19,7 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
   playerRef,
   enablePreview = true,
   thumbnailVtt,
+  isAudioMode = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const progressFilledRef = useRef<HTMLDivElement>(null);
@@ -109,7 +111,7 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
       video.removeEventListener("durationchange", updateProgress);
       video.removeEventListener("seeked", updateProgress);
     };
-  }, [videoRef]);
+  }, [videoRef, isAudioMode]);
 
   // ─── Subscribe to progress (buffered ranges) ────────────────────────────
   useEffect(() => {
@@ -126,7 +128,7 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
 
     video.addEventListener("progress", updateBuffered);
     return () => video.removeEventListener("progress", updateBuffered);
-  }, [videoRef]);
+  }, [videoRef, isAudioMode]);
 
   // ─── Non-React drag-state helpers ────────────────────────────────────────
   const startDragging = useCallback(() => {
