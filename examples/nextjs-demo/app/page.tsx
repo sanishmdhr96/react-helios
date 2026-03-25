@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import {
   Play, Pause, SkipForward, Volume2, Maximize, PictureInPicture,
   Zap, Smartphone, Radio, Layers, MonitorPlay, Bookmark,
 } from "lucide-react";
-import { AUDIO_BANDWIDTH_THRESHOLDS, AUDIO_SWITCH_LEVELS, VideoPlayer } from "react-helios";
+import { VideoPlayer } from "react-helios";
 import type { VideoError, VideoPlayerRef } from "react-helios";
 import "react-helios/styles";
 
@@ -384,32 +384,24 @@ export default function DemoPage() {
               <div className="aspect-video w-full mb-8 shadow-[0_10px_40px_rgba(0,0,0,0.1)] rounded-xl overflow-hidden">
                 <VideoPlayer
                   ref={playerRef}
-                  src="https://luniba.com/high_quality_video/index.m3u8"
-                  poster="https://luniba.com/high_quality_video/thumbnails/thumbnail.png"
+                  src="https://s3.do.webpoint.io/wepreach/media/36b12575-f693-447a-9b72-d89495ff4400/hls/25228fef-63c4-47d4-b275-b2820d3f6c65/master.m3u8"
                   controls
                   options={{
-                    thumbnailVtt: "https://luniba.com/high_quality_video/thumbnails/thumbnails.vtt",
-                    audioSrc: "https://luniba.com/high_quality_video/audio/testvideo.m3u8",
-                    audioModeLabel: "Switch to Audio",
-                    videoModeLabel: "Switch to Video",
                     autoplay: false,
                     playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-                    audioBandwidthThreshold: AUDIO_BANDWIDTH_THRESHOLDS.FAIR,
-                    audioModeSwitchLevel: AUDIO_SWITCH_LEVELS.LOWEST,
                     enablePreview: true,
                     enableHLS: true,
-                    controlBarItems: demoControlBarItems,
+controlBarItems: demoControlBarItems,
                     contextMenuItems: [
                       { label: "Add to Watchlist", onClick: () => addEvent("add to watchlist") },
                     ],
                     onTheaterModeChange: (t) => setIsTheater(t),
-                    onAudioModeChange: (isAudio) => addEvent(isAudio ? "→ audio mode (auto)" : "→ video mode (auto)"),
                     onPlay: () => addEvent("play"),
                     onPause: () => addEvent("pause"),
                     onEnded: () => addEvent("ended"),
                     onDurationChange: (d) => addEvent(`duration: ${d.toFixed(1)}s`),
                     onBuffering: (b) => addEvent(b ? "buffering…" : "buffering ended"),
-                    onError: (err: VideoError) => addEvent(`error: ${err.code}`),
+                    onError: (err: VideoError) => addEvent(`error: ${err.code} — ${err.message}`),
                   }}
                 />
               </div>

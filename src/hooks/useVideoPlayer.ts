@@ -165,12 +165,7 @@ export function useVideoPlayer(
     const opts = optionsRef.current;
 
     if (opts.enableHLS !== false && isHLSUrl(src)) {
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native HLS (Safari) – no HLS.js instance needed
-        video.src = src;
-        video.load();
-        if (opts.autoplay) video.play().catch(() => {});
-      } else if (HLS.isSupported()) {
+      if (HLS.isSupported()) {
         const hls = new HLS({
           autoStartLoad: true,
           startLevel: -1,
@@ -359,6 +354,12 @@ export function useVideoPlayer(
         });
 
         hlsRef.current = hls;
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Native HLS fallback — only for browsers where HLS.js is not supported
+        // (e.g. very old Safari). Modern Safari supports MSE so HLS.js runs above.
+        video.src = src;
+        video.load();
+        if (opts.autoplay) video.play().catch(() => {});
       }
     } else {
       // Regular video (mp4, webm, etc.)
