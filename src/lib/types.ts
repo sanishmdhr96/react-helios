@@ -159,6 +159,10 @@ export interface VideoPlayerOptions {
   // Preview
   enablePreview?: boolean;
   thumbnailVtt?: string;
+  /** Override the base URL used to resolve relative image paths inside the VTT file.
+   *  Useful when the VTT contains root-absolute paths that are missing a path prefix
+   *  (e.g. S3 bucket name). Example: "https://cdn.example.com/wepreach" */
+  thumbnailVttBaseUrl?: string;
   // UI
   autoHideControls?: boolean;
   // Subtitles

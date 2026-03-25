@@ -16,6 +16,7 @@ interface ControlsProps {
   playbackRates: PlaybackRate[];
   enablePreview: boolean;
   thumbnailVtt?: string;
+  thumbnailVttBaseUrl?: string;
   isPlaying: boolean;
   volume: number;
   isMuted: boolean;
@@ -43,6 +44,7 @@ export const Controls = memo<ControlsProps>(function Controls({
   playbackRates,
   enablePreview,
   thumbnailVtt,
+  thumbnailVttBaseUrl,
   isPlaying,
   volume,
   isMuted,
@@ -232,6 +234,7 @@ export const Controls = memo<ControlsProps>(function Controls({
           playerRef={playerRef}
           enablePreview={enablePreview}
           thumbnailVtt={thumbnailVtt}
+          thumbnailVttBaseUrl={thumbnailVttBaseUrl}
           isAudioMode={isAudioMode}
         />
 

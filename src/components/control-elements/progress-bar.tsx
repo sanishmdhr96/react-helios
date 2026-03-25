@@ -11,6 +11,7 @@ export interface ProgressBarProps {
   playerRef: VideoPlayerRef;
   enablePreview?: boolean;
   thumbnailVtt?: string;
+  thumbnailVttBaseUrl?: string;
   isAudioMode?: boolean;
 }
 
@@ -19,6 +20,7 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
   playerRef,
   enablePreview = true,
   thumbnailVtt,
+  thumbnailVttBaseUrl,
   isAudioMode = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,7 +72,7 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
     fetch(thumbnailVtt)
       .then(r => r.text())
       .then(text => {
-        if (!cancelled) thumbnailCuesRef.current = parseThumbnailVtt(text, thumbnailVtt);
+        if (!cancelled) thumbnailCuesRef.current = parseThumbnailVtt(text, thumbnailVttBaseUrl ?? thumbnailVtt);
       })
       .catch(() => {
         if (!cancelled) thumbnailCuesRef.current = [];

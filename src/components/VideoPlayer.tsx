@@ -20,6 +20,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       enableHLS = true,
       enablePreview = true,
       thumbnailVtt,
+      thumbnailVttBaseUrl,
       hlsConfig,
       autoHideControls = true,
       subtitles,
@@ -197,6 +198,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             playbackRates={playbackRates}
             enablePreview={enablePreview}
             thumbnailVtt={state.isAudioMode ? undefined : thumbnailVtt}
+            thumbnailVttBaseUrl={thumbnailVttBaseUrl}
             isPlaying={state.isPlaying}
             volume={state.volume}
             isMuted={state.isMuted}
