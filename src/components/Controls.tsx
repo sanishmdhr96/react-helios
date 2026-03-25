@@ -253,6 +253,7 @@ export const Controls = memo<ControlsProps>(function Controls({
           <ControlElements.TimeDisplay
             videoRef={videoRef}
             isLive={isLive}
+            isAudioMode={isAudioMode}
           />
 
           <div style={{ flex: 1 }} />

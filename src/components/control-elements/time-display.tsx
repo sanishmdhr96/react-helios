@@ -6,6 +6,7 @@ import { formatTime } from "../../lib/format";
 export interface TimeDisplayProps {
   videoRef: React.RefObject<HTMLMediaElement | null>;
   isLive?: boolean;
+  isAudioMode?: boolean;
 }
 
 /**
@@ -13,7 +14,7 @@ export interface TimeDisplayProps {
  * durationchange events, updating the DOM via refs. It never re-renders
  * during playback — only when isLive changes (once per source change).
  */
-const TimeDisplay = memo<TimeDisplayProps>(({ videoRef, isLive = false }) => {
+const TimeDisplay = memo<TimeDisplayProps>(({ videoRef, isLive = false, isAudioMode = false }) => {
   const currentRef  = useRef<HTMLSpanElement>(null);
   const durationRef = useRef<HTMLSpanElement>(null);
 
@@ -45,7 +46,7 @@ const TimeDisplay = memo<TimeDisplayProps>(({ videoRef, isLive = false }) => {
       video.removeEventListener("durationchange", updateDuration);
       video.removeEventListener("seeked",         updateTime);
     };
-  }, [videoRef, isLive]);
+  }, [videoRef, isLive, isAudioMode]);
 
   if (isLive) {
     return (
