@@ -72,7 +72,7 @@ const ProgressBar: React.FC<ProgressBarProps> = memo(({
     fetch(thumbnailVtt)
       .then(r => r.text())
       .then(text => {
-        if (!cancelled) thumbnailCuesRef.current = parseThumbnailVtt(text, thumbnailVttBaseUrl ?? thumbnailVtt);
+        if (!cancelled) thumbnailCuesRef.current = parseThumbnailVtt(text, thumbnailVtt, thumbnailVttBaseUrl);
       })
       .catch(() => {
         if (!cancelled) thumbnailCuesRef.current = [];

@@ -21,10 +21,17 @@ function parseVttTime(s: string): number {
   return +parts[0] * 60 + parseFloat(parts[1]);
 }
 
-function resolveUrl(base: string, url: string): string {
+function resolveUrl(vttBase: string, url: string, absoluteRootBase?: string): string {
   if (/^https?:\/\//i.test(url)) return url;
+  // Root-absolute paths (starting with "/") are resolved against the origin by
+  // new URL(), which strips any path prefix from the base. When the caller
+  // provides an explicit absoluteRootBase (e.g. an S3 bucket sub-path), use
+  // simple string concatenation instead so the prefix is preserved.
+  if (url.startsWith("/") && absoluteRootBase) {
+    return absoluteRootBase.replace(/\/+$/, "") + url;
+  }
   try {
-    return new URL(url, base).href;
+    return new URL(url, vttBase).href;
   } catch {
     return url;
   }
@@ -40,7 +47,7 @@ function resolveUrl(base: string, url: string): string {
  * @param text    Raw VTT file text
  * @param baseUrl VTT file URL — used to resolve relative image paths
  */
-export function parseThumbnailVtt(text: string, baseUrl = ""): ThumbnailCue[] {
+export function parseThumbnailVtt(text: string, baseUrl = "", absoluteRootBase?: string): ThumbnailCue[] {
   const cues: ThumbnailCue[] = [];
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   let i = 0;
@@ -72,7 +79,7 @@ export function parseThumbnailVtt(text: string, baseUrl = ""): ThumbnailCue[] {
           h = coords[3] ?? 90;
         }
 
-        cues.push({ start, end, url: resolveUrl(baseUrl, url), x, y, w, h });
+        cues.push({ start, end, url: resolveUrl(baseUrl, url, absoluteRootBase), x, y, w, h });
       }
     }
 
