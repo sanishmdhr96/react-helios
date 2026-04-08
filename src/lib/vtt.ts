@@ -23,12 +23,10 @@ function parseVttTime(s: string): number {
 
 function resolveUrl(vttBase: string, url: string, absoluteRootBase?: string): string {
   if (/^https?:\/\//i.test(url)) return url;
-  // Root-absolute paths (starting with "/") are resolved against the origin by
-  // new URL(), which strips any path prefix from the base. When the caller
-  // provides an explicit absoluteRootBase (e.g. an S3 bucket sub-path), use
-  // simple string concatenation instead so the prefix is preserved.
-  if (url.startsWith("/") && absoluteRootBase) {
-    return absoluteRootBase.replace(/\/+$/, "") + url;
+  // If a base URL is provided, use it to resolve any relative path (with or
+  // without a leading slash) so the prefix is always preserved.
+  if (absoluteRootBase) {
+    return absoluteRootBase.replace(/\/+$/, "") + "/" + url.replace(/^\//, "");
   }
   try {
     return new URL(url, vttBase).href;

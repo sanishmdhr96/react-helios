@@ -1,7 +1,7 @@
 {
   "name": "react-helios",
-  "version": "2.7.5",
-  "description": "Production-grade React video player with HLS, zero-cost audio mode, adaptive quality, live streams, subtitles, and VTT sprite thumbnail preview",
+  "version": "2.10.0",
+  "description": "Production-grade React video player with HLS, zero-cost audio mode, adaptive quality, live streams, subtitles, VTT sprite thumbnail preview, skip buttons, and mobile-responsive controls",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

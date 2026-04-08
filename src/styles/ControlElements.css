@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 50%;
   transition: opacity 0.15s, background-color 0.15s, transform 0.1s;
   flex-shrink: 0;
 }
@@ -34,11 +34,84 @@
   pointer-events: none;
 }
 
+/* ─── Skip buttons (hidden on mobile) ───────────────────────────────────── */
+/* Shown on desktop, hidden on mobile so the control bar doesn't overflow.   */
+/* YouTube follows the same pattern: skip buttons only on wider screens.     */
+.rvp-skip-btn {
+  display: flex;
+  /* Icon is 28 × 28 instead of 20 × 20, so reduce padding to keep the total
+     button size (and therefore the hover background) identical to the
+     play/pause/volume buttons. 6 px + 28 px + 6 px = 40 px. */
+  padding: 6px;
+}
+
+/*
+ * Skip icon: SVG arrow + HTML number overlay.
+ * The wrapper is sized to the SVG (20 × 20). The number span is pinned at
+ * 50 % / 54 % — the centre of the circular arrow in the replay icon path.
+ * Using HTML text instead of SVG <text> guarantees correct font rasterisation
+ * at small sizes across all browsers (same approach as YouTube / Plyr).
+ */
+/* Skip icon — stroked circular arrow with HTML number centered inside.
+   The arrow loop is centered at (12, 13) of the 24px SVG, which maps to
+   50% / 56% of the rendered icon. The 10px bold number sits cleanly in the
+   cavity created by the stroked (not filled) arc. */
+.rvp-skip-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+
+.rvp-skip-num {
+  position: absolute;
+  /* Circle is centred at (12, 12) in the 24-unit viewBox → vertical centre 50%.
+     Horizontal position is offset per direction (see modifiers below) so the
+     number sits towards the opening of the half-circle, like Spotify. */
+  top: 56%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.3px;
+  color: currentColor;
+  font-family: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  user-select: none;
+  pointer-events: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Backward: arc on the right, opening on the left → number sits to the left */
+.rvp-skip-num-back {
+  left: 30%;
+}
+
+/* Forward: arc on the left, opening on the right → number sits to the right */
+.rvp-skip-num-fwd {
+  left: 70%;
+}
+
+/* ─── Mobile overrides ───────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .controlButton {
     padding: 8px;
     min-width: 36px;
     min-height: 36px;
+  }
+
+  /* Hide skip buttons — not enough horizontal space on phone screens */
+  .rvp-skip-btn {
+    display: none !important;
+  }
+
+  /* Hide PiP and Theater — rarely used on mobile; free up space */
+  .rvp-pip-btn,
+  .rvp-theater-btn {
+    display: none !important;
   }
 }
 
@@ -103,69 +176,115 @@
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  background-color: rgba(15, 15, 15, 0.95);
-  border-radius: 6px;
-  padding: 6px;
-  min-width: 150px;
+  background-color: rgba(20, 20, 20, 0.97);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 220px;
   z-index: 30;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
 }
 
-/* Tabs (Speed / Quality) */
-.settingsTabs {
+/* ── Main panel rows ── */
+.settingsMainPanel {
   display: flex;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  margin-bottom: 4px;
+  flex-direction: column;
 }
 
-.settingsTab {
-  flex: 1;
+.settingsRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 6px 0;
-  letter-spacing: 0.04em;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
-  text-transform: uppercase;
-}
-
-.settingsTab.active {
-  color: #fff;
-  border-bottom-color: #3b82f6;
-}
-
-.settingsTab:hover:not(.active) {
   color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: background-color 0.15s;
 }
 
-/* Panel section label */
-.settingsPanelLabel {
+.settingsRow:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.settingsRowIcon {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.settingsRowLabel {
+  flex: 1;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.settingsRowValue {
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 4px 8px 2px;
+  flex-shrink: 0;
 }
 
-/* Option rows */
+.settingsRowChevron {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+/* ── Sub-panel ── */
+.settingsSubPanel {
+  display: flex;
+  flex-direction: column;
+}
+
+.settingsBackRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 0.15s;
+}
+
+.settingsBackRow:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.settingsDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 2px 4px;
+}
+
+/* ── Option rows (inside sub-panels) ── */
 .settingsOption {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 12px;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   text-align: left;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 13px;
   transition: background-color 0.15s;
 }
@@ -180,10 +299,18 @@
   font-weight: 600;
 }
 
+.settingsOptionCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex-shrink: 0;
+  color: #60a5fa;
+}
+
 .settingsOptionBadge {
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
-  margin-left: 8px;
   flex-shrink: 0;
 }
 

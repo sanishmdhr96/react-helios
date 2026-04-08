@@ -145,3 +145,66 @@
   transform: translate(-50%, -50%) scale(1.25);
   transition: none;
 }
+
+/* ─── Waveform progress bar (audio mode) ────────────────────────────────── */
+
+/*
+ * Sits absolutely inside .progressContainer, aligned to the bottom.
+ * Does not affect container height (position: absolute).
+ */
+.rvp-waveform {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px; /* match .progressContainer padding */
+  height: 22px;
+  pointer-events: none;
+}
+
+.rvp-waveform-base,
+.rvp-waveform-filled {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(200, 1fr);
+  gap: 2px;
+  align-items: end;
+}
+
+/* Dot — unplayed portion (short nub at baseline) */
+.rvp-waveform-dot {
+  min-width: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 1.5px;
+}
+
+/* Buffered layer — same grid layout, gray bars clipped to buffered range */
+.rvp-waveform-buffered {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(200, 1fr);
+  gap: 2px;
+  align-items: end;
+}
+
+.rvp-waveform-buffered-bar {
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 2px 2px 0 0;
+}
+
+/* Filled bar — played portion; height set inline as % of container */
+.rvp-waveform-bar {
+  min-width: 0;
+  background: #3b82f6;
+  border-radius: 2px 2px 0 0;
+  /* height set inline as % of container (28px) */
+}
+
+/* clip-path: inset(0 RIGHT% 0 0) — updated imperatively on timeupdate */
+.rvp-waveform-filled {
+  overflow: visible;
+}
+

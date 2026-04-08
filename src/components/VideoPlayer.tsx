@@ -27,6 +27,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       crossOrigin,
       logo,
       audioModeFallback,
+      audioPoster,
       audioSrc,
       showAudioButton,
       audioModeIcon,
@@ -34,6 +35,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       audioModeLabel,
       videoModeLabel,
       defaultAudioMode,
+      showQualityMenu,
+      manualQualityLevels,
       audioBandwidthThreshold,
       audioModeSwitchLevel,
       audioModeRecoveryInterval,
@@ -48,15 +51,73 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       onAudioModeChange,
       contextMenuItems,
       controlBarItems,
+      skipSeconds = 15,
     } = options;
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
+    // ── Manual quality src override ───────────────────────────────────────────
+    const [manualSrc, setManualSrc] = useState<string | undefined>(undefined);
+    const [activeManualSrc, setActiveManualSrc] = useState<string | undefined>(undefined);
+
+    // Stores { time, playing } so we can resume at the same position after a quality switch
+    const qualityResumeRef = useRef<{ time: number; playing: boolean } | null>(null);
+
+    // Reset manual selection whenever the base src prop changes
+    useEffect(() => {
+      setManualSrc(undefined);
+      setActiveManualSrc(undefined);
+    }, [src]);
+
+    // After a quality switch, the src effect in useVideoPlayer calls video.load()
+    // which resets currentTime to 0. We restore the position in two steps:
+    //   1. loadedmetadata — seek to the saved time (triggers `seeked` so the
+    //      progress bar jumps to the correct position immediately)
+    //   2. canplay — only then call play(), so the video never enters the
+    //      "playing but waiting for data" state that causes timeupdate events
+    //      to advance the progress bar while the frame is visually frozen.
+    useEffect(() => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      const handleLoadedMetadata = () => {
+        if (!qualityResumeRef.current) return;
+        video.currentTime = qualityResumeRef.current.time;
+        // Don't play yet — wait for canplay so we have data at this position
+      };
+
+      const handleCanPlay = () => {
+        const resume = qualityResumeRef.current;
+        if (!resume) return;
+        qualityResumeRef.current = null;
+        if (resume.playing) video.play().catch(() => {});
+      };
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("canplay", handleCanPlay);
+      return () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        video.removeEventListener("canplay", handleCanPlay);
+      };
+    }, [videoRef]);
+
+    const handleManualQualityChange = useCallback((qualitySrc: string) => {
+      const video = videoRef.current;
+      qualityResumeRef.current = {
+        time: video?.currentTime ?? 0,
+        playing: video ? !video.paused : false,
+      };
+      setManualSrc(qualitySrc);
+      setActiveManualSrc(qualitySrc);
+    }, [videoRef]);
+
+    const activeSrc = manualSrc ?? src;
+
     const { state, ref: playerRef, fullscreenContainerRef } = useVideoPlayer(
       videoRef,
-      src,
+      activeSrc,
       {
         autoplay,
         muted,
@@ -182,7 +243,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         {/* Audio mode overlay — sits above video, below controls (DOM order) */}
         {state.isAudioMode && (
           <AudioModeOverlay
-            poster={poster}
+            poster={audioPoster ?? (audioModeFallback ? undefined : poster)}
             logo={logo}
             audioModeFallback={audioModeFallback}
             isBuffering={state.isBuffering}
@@ -215,8 +276,14 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             isLive={state.isLive}
             qualityLevels={state.qualityLevels}
             currentQualityLevel={state.currentQualityLevel}
+            playingQualityLevel={state.playingQualityLevel}
+            showQualityMenu={showQualityMenu}
+            manualQualityLevels={manualQualityLevels}
+            activeManualSrc={activeManualSrc}
+            onManualQualityChange={handleManualQualityChange}
             controlBarItems={controlBarItems}
             autoHideControls={autoHideControls}
+            skipSeconds={skipSeconds}
           />
         )}
 

@@ -6,6 +6,7 @@ import type {
   VideoPlayerRef,
   HLSQualityLevel,
   ControlBarItem,
+  ManualQualityLevel,
 } from "../lib/types";
 import { ControlElements } from "./control-elements";
 
@@ -33,8 +34,14 @@ interface ControlsProps {
   isLive: boolean;
   qualityLevels: HLSQualityLevel[];
   currentQualityLevel: number;
+  playingQualityLevel: number;
+  showQualityMenu?: boolean;
+  manualQualityLevels?: ManualQualityLevel[];
+  activeManualSrc?: string;
+  onManualQualityChange?: (src: string) => void;
   controlBarItems?: ControlBarItem[];
   autoHideControls: boolean;
+  skipSeconds: number;
 }
 
 export const Controls = memo<ControlsProps>(function Controls({
@@ -61,8 +68,14 @@ export const Controls = memo<ControlsProps>(function Controls({
   isLive,
   qualityLevels,
   currentQualityLevel,
+  playingQualityLevel,
+  showQualityMenu,
+  manualQualityLevels,
+  activeManualSrc,
+  onManualQualityChange,
   controlBarItems,
   autoHideControls,
+  skipSeconds,
 }) {
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showControls, setShowControls] = useState(true);
@@ -204,6 +217,15 @@ export const Controls = memo<ControlsProps>(function Controls({
   const handleAudioToggle = useCallback(() => playerRef.toggleAudioMode(), [playerRef]);
   const handleFullscreen = useCallback(() => playerRef.toggleFullscreen(), [playerRef]);
   const handleSeekToLive = useCallback(() => playerRef.seekToLive(), [playerRef]);
+  const handleSkipBack = useCallback(() => {
+    const ct = videoRef.current?.currentTime ?? 0;
+    playerRef.seek(Math.max(0, ct - skipSeconds));
+  }, [playerRef, videoRef, skipSeconds]);
+  const handleSkipForward = useCallback(() => {
+    const ct = videoRef.current?.currentTime ?? 0;
+    const dur = videoRef.current?.duration ?? Infinity;
+    playerRef.seek(Math.min(isFinite(dur) ? dur : ct + skipSeconds, ct + skipSeconds));
+  }, [playerRef, videoRef, skipSeconds]);
 
   return (
     <div
@@ -238,11 +260,18 @@ export const Controls = memo<ControlsProps>(function Controls({
           isAudioMode={isAudioMode}
         />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 4 }}>
           {isPlaying ? (
             <ControlElements.PauseButton onClick={handlePause} />
           ) : (
             <ControlElements.PlayButton onClick={handlePlay} />
+          )}
+
+          {skipSeconds > 0 && (
+            <ControlElements.SkipBackButton onClick={handleSkipBack} seconds={skipSeconds} />
+          )}
+          {skipSeconds > 0 && (
+            <ControlElements.SkipForwardButton onClick={handleSkipForward} seconds={skipSeconds} />
           )}
 
           <ControlElements.VolumeControl
@@ -277,14 +306,20 @@ export const Controls = memo<ControlsProps>(function Controls({
             />
           )}
 
-          {/* Settings — speed always shown; quality tab appears for HLS streams */}
+          {/* Settings — speed always shown; quality tab hidden in audio mode */}
           <ControlElements.SettingsMenu
             currentRate={playbackRate}
             playbackRates={playbackRates}
             onRateChange={handleRateChange}
             qualityLevels={qualityLevels}
             currentQualityLevel={currentQualityLevel}
+            playingQualityLevel={playingQualityLevel}
             onQualityChange={handleQualityChange}
+            showQualityMenu={showQualityMenu}
+            manualQualityLevels={manualQualityLevels}
+            activeManualSrc={activeManualSrc}
+            onManualQualityChange={onManualQualityChange}
+            isAudioMode={isAudioMode}
           />
 
           {/* Custom control bar items injected by the consumer */}

@@ -110,7 +110,10 @@ export interface PlayerState {
   isAudioMode: boolean;
   isLive: boolean;
   qualityLevels: HLSQualityLevel[];
+  /** The user's quality selection: -1 = Auto, N = specific level id. Controls the checkmark in the settings menu. */
   currentQualityLevel: number;
+  /** The level HLS.js is actually playing right now (always a real level index, never -1). */
+  playingQualityLevel: number;
 }
 
 export type PlaybackRate = 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 1.75 | 2;
@@ -131,6 +134,13 @@ export interface VideoPlayerRef {
   toggleAudioMode: () => void;
   getState: () => PlayerState;
   getVideoElement: () => HTMLVideoElement | null;
+}
+
+export interface ManualQualityLevel {
+  /** Display label shown in the Quality menu, e.g. "360p", "720p", "1080p" */
+  label: string;
+  /** URL to load when this quality is selected (HLS m3u8 or direct MP4) */
+  src: string;
 }
 
 export interface ContextMenuItem {
@@ -165,6 +175,12 @@ export interface VideoPlayerOptions {
   thumbnailVttBaseUrl?: string;
   // UI
   autoHideControls?: boolean;
+  /**
+   * Seconds to jump when the skip-back / skip-forward buttons are clicked.
+   * Set to `0` to hide the buttons. Default: `15`.
+   * The buttons are always hidden on mobile screens (≤ 480 px).
+   */
+  skipSeconds?: number;
   // Subtitles
   subtitles?: SubtitleTrack[];
   crossOrigin?: "anonymous" | "use-credentials";
@@ -180,6 +196,8 @@ export interface VideoPlayerOptions {
    * The `logo` prop is still rendered on top of this if also provided.
    */
   audioModeFallback?: ReactNode;
+  /** Poster image shown in the audio mode overlay. Falls back to the video `poster` if not provided. */
+  audioPoster?: string;
   /** Label shown next to the icon when in video mode (click → switches to audio). Default: "Audio" */
   audioModeLabel?: string;
   /** Label shown next to the icon when in audio mode (click → switches to video). Default: "Video" */
@@ -213,6 +231,21 @@ export interface VideoPlayerOptions {
   onBuffering?: (isBuffering: boolean) => void;
   onTheaterModeChange?: (isTheater: boolean) => void;
   onAudioModeChange?: (isAudio: boolean) => void;
+  // Quality
+  /** Force-show the Quality tab in the Settings menu (useful with manualQualityLevels). */
+  showQualityMenu?: boolean;
+  /**
+   * Manual quality levels for non-adaptive sources.
+   * Each entry has a display label and a src URL to load when selected.
+   * Works alongside the automatic HLS quality levels — both can be shown at the same time.
+   * @example
+   * manualQualityLevels={[
+   *   { label: "1080p", src: "https://cdn.example.com/video_1080.m3u8" },
+   *   { label: "720p",  src: "https://cdn.example.com/video_720.m3u8" },
+   *   { label: "360p",  src: "https://cdn.example.com/video_360.mp4" },
+   * ]}
+   */
+  manualQualityLevels?: ManualQualityLevel[];
   // Custom
   contextMenuItems?: ContextMenuItem[];
   controlBarItems?: ControlBarItem[];

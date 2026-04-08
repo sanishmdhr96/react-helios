@@ -46,7 +46,7 @@ FullscreenButton.displayName = "FullscreenButton";
 export const PiPButton = memo<PiPButtonProps>(({ onClick, isPiP = false }) => (
   <button
     onClick={onClick}
-    className="controlButton"
+    className="controlButton rvp-pip-btn"
     aria-label={isPiP ? "Exit Picture-in-Picture" : "Picture-in-Picture"}
     title={isPiP ? "Exit Picture-in-Picture (P)" : "Picture-in-Picture (P)"}
   >
@@ -62,7 +62,7 @@ export interface TheaterButtonProps { onClick: () => void; isTheater?: boolean; 
 export const TheaterButton = memo<TheaterButtonProps>(({ onClick, isTheater = false }) => (
   <button
     onClick={onClick}
-    className="controlButton"
+    className="controlButton rvp-theater-btn"
     aria-label={isTheater ? "Exit Theater Mode" : "Theater Mode"}
     title={isTheater ? "Exit Theater Mode (T)" : "Theater Mode (T)"}
   >
@@ -79,4 +79,76 @@ export const TheaterButton = memo<TheaterButtonProps>(({ onClick, isTheater = fa
 ));
 TheaterButton.displayName = "TheaterButton";
 
-export default { PlayButton, PauseButton, FullscreenButton, PiPButton, TheaterButton };
+export interface SkipBackButtonProps { onClick: () => void; seconds: number; }
+export interface SkipForwardButtonProps { onClick: () => void; seconds: number; }
+
+/**
+ * Half-circle skip icon.
+ *
+ * Geometry (viewBox 0 0 24 24, centre 12,12, radius 8):
+ *   - BACKWARD: arc is the RIGHT half of the circle (opens to the LEFT).
+ *     Path: from (12, 4) → down the right side → (12, 20).
+ *     Arrowhead at the top endpoint, pointing LEFT (into the opening).
+ *   - FORWARD: arc is the LEFT half of the circle (opens to the RIGHT).
+ *     Path: from (12, 4) → down the left side → (12, 20).
+ *     Arrowhead at the top endpoint, pointing RIGHT.
+ */
+const SkipIcon = ({ seconds, forward }: { seconds: number; forward: boolean }) => (
+  <span className="rvp-skip-icon-wrap">
+    <svg
+      width="28"
+      height="28"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ transform: forward ? "rotate(45deg)" : "rotate(-45deg)" }}
+    >
+      {forward ? (
+        <>
+          {/* ~225° arc — extends past half-circle, opening on the right */}
+          <path d="M12 4 A 8 8 0 1 0 17.66 17.66" />
+          {/* Horizontal arrowhead at the top, tangent to the loop, pointing right */}
+          <polygon points="9 1.5, 13 4, 9 6.5" fill="currentColor" stroke="currentColor" />
+        </>
+      ) : (
+        <>
+          {/* ~225° arc — extends past half-circle, opening on the left */}
+          <path d="M12 4 A 8 8 0 1 1 6.34 17.66" />
+          {/* Horizontal arrowhead at the top, tangent to the loop, pointing left */}
+          <polygon points="15 1.5, 11 4, 15 6.5" fill="currentColor" stroke="currentColor" />
+        </>
+      )}
+    </svg>
+    <span className={`rvp-skip-num ${forward ? "rvp-skip-num-fwd" : "rvp-skip-num-back"}`} aria-hidden="true">{seconds}</span>
+  </span>
+);
+
+export const SkipBackButton = memo<SkipBackButtonProps>(({ onClick, seconds }) => (
+  <button
+    onClick={onClick}
+    className="controlButton rvp-skip-btn"
+    aria-label={`Rewind ${seconds} seconds`}
+    title={`Rewind ${seconds}s`}
+  >
+    <SkipIcon seconds={seconds} forward={false} />
+  </button>
+));
+SkipBackButton.displayName = "SkipBackButton";
+
+export const SkipForwardButton = memo<SkipForwardButtonProps>(({ onClick, seconds }) => (
+  <button
+    onClick={onClick}
+    className="controlButton rvp-skip-btn"
+    aria-label={`Skip forward ${seconds} seconds`}
+    title={`Skip forward ${seconds}s`}
+  >
+    <SkipIcon seconds={seconds} forward={true} />
+  </button>
+));
+SkipForwardButton.displayName = "SkipForwardButton";
+
+export default { PlayButton, PauseButton, FullscreenButton, PiPButton, TheaterButton, SkipBackButton, SkipForwardButton };

@@ -23,6 +23,7 @@ export type {
   VideoErrorCode,
   ContextMenuItem,
   ControlBarItem,
+  ManualQualityLevel,
 } from "./lib/types";
 
 // Utilities

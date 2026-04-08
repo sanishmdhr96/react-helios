@@ -5,7 +5,7 @@ import {
   Play, Pause, SkipForward, Volume2, Maximize, PictureInPicture,
   Zap, Smartphone, Radio, Layers, MonitorPlay, Bookmark,
 } from "lucide-react";
-import { AUDIO_BANDWIDTH_THRESHOLDS, AUDIO_SWITCH_LEVELS, VideoPlayer } from "react-helios";
+import { VideoPlayer } from "react-helios";
 import type { VideoError, VideoPlayerRef } from "react-helios";
 import "react-helios/styles";
 
@@ -25,6 +25,9 @@ import "react-helios/styles";
     muted: false,
     preload: "metadata",
     thumbnailVtt: "https://example.com/thumbs/storyboard.vtt",
+    // Rewind / skip-forward buttons — 15s jump by default.
+    // Hidden automatically on mobile (≤ 480 px). Set to 0 to hide entirely.
+    skipSeconds: 15,
   }}
 />`;
 
@@ -385,19 +388,23 @@ export default function DemoPage() {
                 <VideoPlayer
                   ref={playerRef}
                   src="https://luniba.com/high_quality_video/index.m3u8"
-                  poster="https://luniba.com/high_quality_video/thumbnails/thumbnail.png"
+
                   controls
                   options={{
                     thumbnailVtt: "https://luniba.com/high_quality_video/thumbnails/thumbnails.vtt",
+
+                    // thumbnailVttBaseUrl: "https://s3.do.webpoint.io/wepreach",
                     audioSrc: "https://luniba.com/high_quality_video/audio/testvideo.m3u8",
+
+                    audioPoster: "https://luniba.com/high_quality_video/thumbnails/thumbnail.png",
                     audioModeLabel: "Switch to Audio",
                     videoModeLabel: "Switch to Video",
                     autoplay: false,
                     playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-                    audioBandwidthThreshold: AUDIO_BANDWIDTH_THRESHOLDS.FAIR,
-                    audioModeSwitchLevel: AUDIO_SWITCH_LEVELS.LOWEST,
                     enablePreview: true,
                     enableHLS: true,
+                    // Skip-back / skip-forward buttons (15s jump, hidden on mobile)
+                    skipSeconds: 15,
                     controlBarItems: demoControlBarItems,
                     contextMenuItems: [
                       { label: "Add to Watchlist", onClick: () => addEvent("add to watchlist") },

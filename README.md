@@ -1,6 +1,6 @@
 # react-helios
 
-Production-grade React video player with HLS streaming, zero-cost audio mode, adaptive quality selection, live stream support, subtitle tracks, VTT sprite sheet thumbnail preview, Picture-in-Picture, and full keyboard control.
+Production-grade React video player with HLS streaming, zero-cost audio mode, adaptive quality selection, manual quality switching, live stream support, subtitle tracks, VTT sprite sheet thumbnail preview, waveform audio progress bar, Picture-in-Picture, configurable skip-back / skip-forward buttons, mobile-responsive controls, and full keyboard control.
 
 ## Installation
 
@@ -69,6 +69,7 @@ Audio mode pauses the video element completely (stopping all video decoding), sh
   controls
   options={{
     audioSrc: "https://example.com/audio-only.m3u8",
+    audioPoster: "https://example.com/audio-artwork.jpg",
     audioModeLabel: "Switch to Audio",
     videoModeLabel: "Switch to Video",
     defaultAudioMode: false,
@@ -80,6 +81,40 @@ Audio mode pauses the video element completely (stopping all video decoding), sh
 The audio toggle button only appears in the control bar when `audioSrc` is provided. Custom icons can be passed via `audioModeIcon` / `videoModeIcon`.
 
 When switching between modes, position, volume, and playback rate are synced automatically — the listener hears no gap.
+
+### Audio mode poster
+
+Use `audioPoster` to show a different image in audio mode than the video `poster`. If neither `audioPoster` nor `poster` is provided, the `audioModeFallback` content is shown instead:
+
+```tsx
+<VideoPlayer
+  src="https://example.com/stream.m3u8"
+  poster="https://example.com/video-thumb.jpg"
+  options={{
+    audioSrc: "https://example.com/audio-only.m3u8",
+    // Show a dedicated artwork image in audio mode
+    audioPoster: "https://example.com/audio-artwork.jpg",
+  }}
+/>
+```
+
+Priority order: `audioPoster` → `poster` (if `audioModeFallback` is not set) → `audioModeFallback` → `logo`.
+
+Use `audioModeFallback` when you want to render arbitrary React content (e.g. an animated logo or custom component) instead of a static image:
+
+```tsx
+<VideoPlayer
+  src="https://example.com/stream.m3u8"
+  options={{
+    audioSrc: "https://example.com/audio-only.m3u8",
+    audioModeFallback: <MyAnimatedArtwork />,
+  }}
+/>
+```
+
+### Waveform progress bar
+
+In audio mode the normal video progress bar is replaced by a **waveform-style bar graph** — 200 pseudo-random bars that reveal left-to-right as the audio plays. Buffered/preloaded content is shown in a lighter shade behind the played bars. No configuration is needed; the waveform appears automatically whenever audio mode is active.
 
 ### Automatic switching
 
@@ -153,6 +188,18 @@ Hover over the progress bar to see a time tooltip. For rich sprite-sheet thumbna
 />
 ```
 
+If the image paths inside the VTT file are relative, supply `thumbnailVttBaseUrl` so the player can resolve them:
+
+```tsx
+<VideoPlayer
+  src="https://example.com/video.mp4"
+  options={{
+    thumbnailVtt: "/thumbs/storyboard.vtt",
+    thumbnailVttBaseUrl: "https://example.com",
+  }}
+/>
+```
+
 ### VTT format
 
 Each cue in the `.vtt` file maps a time range to a rectangular region inside a sprite image using the `#xywh=x,y,w,h` fragment:
@@ -215,12 +262,14 @@ To disable the preview entirely:
 |--------|------|---------|-------------|
 | `enablePreview` | `boolean` | `true` | Show thumbnail / time tooltip on progress bar hover |
 | `thumbnailVtt` | `string` | — | URL to a WebVTT sprite sheet file for rich thumbnail preview |
+| `thumbnailVttBaseUrl` | `string` | — | Base URL prepended to relative image paths inside the VTT file |
 
 ### `options` — UI
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `autoHideControls` | `boolean` | `true` | Hide control bar on mouse leave when playing (video mode only) |
+| `skipSeconds` | `number` | `15` | Seconds to jump when the rewind / skip-forward buttons are clicked. Set to `0` to hide the buttons. Buttons are always hidden on mobile screens (≤ 480 px) to save space, matching YouTube's mobile layout |
 
 ### `options` — Audio mode
 
@@ -229,12 +278,13 @@ To disable the preview entirely:
 | `audioSrc` | `string` | — | Audio-only stream URL; the audio toggle button only shows when this is set |
 | `showAudioButton` | `boolean` | `!!audioSrc` | Force-show or hide the audio toggle button |
 | `defaultAudioMode` | `boolean` | `false` | Start in audio mode |
+| `audioPoster` | `string` | — | Image shown in audio mode (takes priority over `poster`) |
 | `audioModeLabel` | `string` | `"Audio"` | Label on the toggle button when in video mode |
 | `videoModeLabel` | `string` | `"Video"` | Label on the toggle button when in audio mode |
 | `audioModeIcon` | `ReactNode` | built-in headphones icon | Icon shown when in video mode (click → audio) |
 | `videoModeIcon` | `ReactNode` | built-in video icon | Icon shown when in audio mode (click → video) |
-| `audioModeFallback` | `ReactNode` | — | Custom content shown in audio mode when no `poster` is provided |
-| `logo` | `string \| ReactNode` | — | Logo shown in audio mode when no `poster` or `audioModeFallback` is provided |
+| `audioModeFallback` | `ReactNode` | — | Custom React content shown in audio mode when neither `audioPoster` nor `poster` is set |
+| `logo` | `string \| ReactNode` | — | Logo shown in audio mode when no poster or fallback is set |
 | `audioBandwidthThreshold` | `number` | `300` | Kbps — switch when per-fragment bandwidth average drops below this. `0` = disabled (HLS only) |
 | `audioModeSwitchLevel` | `number` | — | HLS quality level index — switch when HLS.js drops to this level or below. `0` = lowest. `-1` = disabled |
 | `audioModeRecoveryInterval` | `number` | `30000` | Ms between recovery probes while in auto-switched audio mode |
@@ -262,10 +312,12 @@ To disable the preview entirely:
 
 ## Quality Selection
 
+### HLS adaptive quality
+
 For HLS streams (`.m3u8`) the player automatically parses the available quality levels from the manifest. Once levels are available, the **Settings (⚙)** button in the control bar grows a **Speed / Quality** tab bar:
 
 - **Speed tab** — always visible, lets you change playback rate.
-- **Quality tab** — appears only for HLS streams. Lists all levels sorted by bitrate (e.g. 1080p, 720p, 480p) plus an **Auto** option that enables ABR (adaptive bitrate). The current auto-selected level is shown in parentheses next to "Auto".
+- **Quality tab** — appears for HLS streams. Lists all levels sorted by bitrate (e.g. 1080p, 720p, 480p) plus an **Auto** option that enables ABR (adaptive bitrate). The current auto-selected level is shown in parentheses next to "Auto".
 
 You can also switch quality programmatically via the ref:
 
@@ -273,6 +325,47 @@ You can also switch quality programmatically via the ref:
 playerRef.current?.setQualityLevel(0);   // pin to highest level
 playerRef.current?.setQualityLevel(-1);  // back to ABR auto
 ```
+
+### Manual quality selection
+
+For non-HLS sources (or when you want to control quality URLs yourself), pass a `manualQualityLevels` array. Each item has a human-readable `label` and the `src` URL to load when the user selects it.
+
+```tsx
+import { VideoPlayer } from "react-helios";
+import type { ManualQualityLevel } from "react-helios";
+
+const qualityLevels: ManualQualityLevel[] = [
+  { label: "1080p",  src: "https://example.com/video-1080p.mp4" },
+  { label: "720p",   src: "https://example.com/video-720p.mp4" },
+  { label: "480p",   src: "https://example.com/video-480p.mp4" },
+  { label: "360p",   src: "https://example.com/video-360p.mp4" },
+];
+
+<VideoPlayer
+  src="https://example.com/video-720p.mp4"
+  controls
+  options={{
+    manualQualityLevels: qualityLevels,
+  }}
+/>
+```
+
+When `manualQualityLevels` is provided, the **Quality tab** appears automatically in the Settings menu. Selecting an option swaps the player `src` and resumes playback at the same position.
+
+Use `showQualityMenu: true` to force the Quality tab open even when no quality levels have been detected yet (useful during the initial HLS manifest load):
+
+```tsx
+options={{ showQualityMenu: true }}
+```
+
+Both manual and HLS quality levels can coexist in the same Quality tab — manual levels appear at the top, HLS ABR levels below a divider.
+
+### `options` — Quality
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `manualQualityLevels` | `ManualQualityLevel[]` | — | Src-based quality options shown in the Settings → Quality tab |
+| `showQualityMenu` | `boolean` | `false` | Force-show the Quality tab in Settings even before HLS levels are detected |
 
 ## Custom Control Bar Buttons
 
@@ -437,6 +530,7 @@ import type {
   PlayerState,
   PlaybackRate,
   HLSQualityLevel,
+  ManualQualityLevel,
   SubtitleTrack,
   BufferedRange,
   VideoError,
@@ -511,6 +605,15 @@ interface ControlBarItem {
 interface ContextMenuItem {
   label: string;
   onClick: () => void;
+}
+```
+
+### `ManualQualityLevel`
+
+```ts
+interface ManualQualityLevel {
+  label: string; // Display name shown in the Settings menu (e.g. "1080p", "HD", "Low")
+  src: string;   // URL to load when this quality level is selected
 }
 ```
 

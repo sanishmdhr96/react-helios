@@ -58,6 +58,7 @@ const DEFAULT_STATE: PlayerState = {
   isLive: false,
   qualityLevels: [],
   currentQualityLevel: -1,
+  playingQualityLevel: -1,
 };
 
 export function useVideoPlayer(
@@ -66,6 +67,8 @@ export function useVideoPlayer(
   options: UseVideoPlayerOptions = {},
 ) {
   const hlsRef = useRef<HLS | null>(null);
+  /** Separate HLS.js instance for the audio element when audioSrc is an HLS URL. */
+  const audioHlsRef = useRef<HLS | null>(null);
   const fullscreenContainerRef = useRef<HTMLElement | null>(null);
   const lastVolumeRef = useRef<number>(1);
   const networkRetriesRef = useRef<number>(0);
@@ -103,6 +106,8 @@ export function useVideoPlayer(
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** True while a recovery probe fragment load is in-flight. */
   const recoveryProbePendingRef = useRef<boolean>(false);
+  /** Timer used to recover from HLS quality-switch stalls where currentTime lands in a buffer gap. */
+  const stallRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Returns the currently-active media element (audio in audio mode, video otherwise). */
   const getActiveMedia = useCallback((): HTMLMediaElement | null => {
@@ -190,13 +195,22 @@ export function useVideoPlayer(
             ...prev,
             qualityLevels: levels,
             currentQualityLevel: -1,
+            playingQualityLevel: -1,
           }));
           if (optionsRef.current.autoplay) video.play().catch(() => {});
         });
 
         hls.on(Events.LEVEL_SWITCHED, (_, data) => {
           if (destroyed) return;
-          setState((prev) => ({ ...prev, currentQualityLevel: data.level }));
+          // Always track what's actually playing (playingQualityLevel).
+          // Only update currentQualityLevel (user's selection) when in manual
+          // mode — if user chose Auto (-1), don't overwrite it with the actual
+          // level so the "Auto" checkmark stays selected in the settings menu.
+          setState((prev) => ({
+            ...prev,
+            playingQualityLevel: data.level,
+            currentQualityLevel: prev.currentQualityLevel === -1 ? -1 : data.level,
+          }));
 
           // ── Level-based auto-switch ──────────────────────────────────────
           const opts = optionsRef.current;
@@ -236,9 +250,10 @@ export function useVideoPlayer(
           // hls.bandwidthEstimate is an EWMA that reacts slowly — if the page
           // loaded on fast WiFi the estimate stays high for many fragments.
           // Instead measure each fragment directly: bytes × 8 / load-time(ms) = Kbps
-          const loadMs = fragData.stats.loading.end - fragData.stats.loading.start;
-          const fragBwKbps = loadMs > 0 && fragData.stats.total > 0
-            ? (fragData.stats.total * 8) / loadMs
+          const { stats } = fragData.frag;
+          const loadMs = stats.loading.end - stats.loading.start;
+          const fragBwKbps = loadMs > 0 && stats.total > 0
+            ? (stats.total * 8) / loadMs
             : 0;
 
           const threshold = opts.audioBandwidthThreshold ?? 300;
@@ -383,7 +398,15 @@ export function useVideoPlayer(
         recoveryTimerRef.current = null;
       }
       recoveryProbePendingRef.current = false;
-      // Reset audio element when source changes
+      if (stallRecoveryTimerRef.current) {
+        clearTimeout(stallRecoveryTimerRef.current);
+        stallRecoveryTimerRef.current = null;
+      }
+      // Destroy audio HLS instance and reset audio element when source changes
+      if (audioHlsRef.current) {
+        audioHlsRef.current.destroy();
+        audioHlsRef.current = null;
+      }
       const audio = optionsRef.current.audioRef?.current;
       if (audio) {
         audio.pause();
@@ -460,13 +483,45 @@ export function useVideoPlayer(
     const handleWaiting = () => {
       setState((prev) => ({ ...prev, isBuffering: true }));
       optionsRef.current.onBuffering?.(true);
+      // HLS quality-switch stall recovery: after an ABR switch, the buffer at
+      // currentTime may be flushed and the new quality starts at the next
+      // segment boundary, leaving currentTime in a gap. After a short grace
+      // period, if the video is still stalled and currentTime is outside every
+      // buffered range, seek forward to the next available data.
+      if (hlsRef.current && !video.paused) {
+        if (stallRecoveryTimerRef.current) clearTimeout(stallRecoveryTimerRef.current);
+        stallRecoveryTimerRef.current = setTimeout(() => {
+          stallRecoveryTimerRef.current = null;
+          if (!video || video.paused || video.readyState >= 3) return;
+          const ct = video.currentTime;
+          const buf = video.buffered;
+          for (let i = 0; i < buf.length; i++) {
+            if (buf.start(i) <= ct && ct < buf.end(i)) return; // already in a buffered range
+          }
+          for (let i = 0; i < buf.length; i++) {
+            if (buf.start(i) > ct) {
+              video.currentTime = buf.start(i);
+              return;
+            }
+          }
+        }, 500);
+      }
     };
     const handleCanPlay = () => {
+      if (stallRecoveryTimerRef.current) {
+        clearTimeout(stallRecoveryTimerRef.current);
+        stallRecoveryTimerRef.current = null;
+      }
       setState((prev) => ({ ...prev, isBuffering: false }));
       optionsRef.current.onBuffering?.(false);
     };
-    const handlePlaying = () =>
+    const handlePlaying = () => {
+      if (stallRecoveryTimerRef.current) {
+        clearTimeout(stallRecoveryTimerRef.current);
+        stallRecoveryTimerRef.current = null;
+      }
       setState((prev) => ({ ...prev, isBuffering: false }));
+    };
     const handleFullscreenChange = () => {
       const fs = !!(
         document.fullscreenElement || (document as any).webkitFullscreenElement
@@ -515,6 +570,10 @@ export function useVideoPlayer(
       );
       video.removeEventListener("enterpictureinpicture", handlePiPChange);
       video.removeEventListener("leavepictureinpicture", handlePiPChange);
+      if (stallRecoveryTimerRef.current) {
+        clearTimeout(stallRecoveryTimerRef.current);
+        stallRecoveryTimerRef.current = null;
+      }
     };
   }, [videoRef]); // stable – options accessed via optionsRef
 
@@ -556,7 +615,14 @@ export function useVideoPlayer(
         optionsRef.current.onDurationChange?.(dur);
       }
     };
+    const handleVolumeChange = () => {
+      const vol = audio.volume;
+      if (vol > 0 && !audio.muted) lastVolumeRef.current = vol;
+      setState((prev) => ({ ...prev, volume: vol, isMuted: audio.muted || vol === 0 }));
+    };
     const handleError = () => {
+      // When HLS.js is managing the audio element it handles its own errors
+      if (audioHlsRef.current) return;
       const err: VideoError = { code: "MEDIA_ERR_NETWORK", message: "Audio source failed to load." };
       setState((prev) => ({ ...prev, error: err }));
       optionsRef.current.onError?.(err);
@@ -570,6 +636,7 @@ export function useVideoPlayer(
     audio.addEventListener("playing", handlePlaying);
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("durationchange", handleDurationChange);
+    audio.addEventListener("volumechange", handleVolumeChange);
     audio.addEventListener("error", handleError);
 
     return () => {
@@ -581,6 +648,7 @@ export function useVideoPlayer(
       audio.removeEventListener("playing", handlePlaying);
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("durationchange", handleDurationChange);
+      audio.removeEventListener("volumechange", handleVolumeChange);
       audio.removeEventListener("error", handleError);
     };
   }, [src]); // re-bind when content changes
@@ -606,15 +674,47 @@ export function useVideoPlayer(
       // Entering audio mode — pause video (stops decoding), hand off to audio element
       const pos = video.currentTime;
       const wasPlaying = !video.paused;
+      const volume = video.volume;
+      const muted = video.muted;
+      const playbackRate = video.playbackRate;
       video.pause();
       // Stop HLS from buffering video in the background — saves bandwidth for audio
       hlsRef.current?.stopLoad();
-      if (!audio.getAttribute("src")) audio.src = opts.audioSrc;
-      audio.currentTime = pos;
-      audio.volume = video.volume;
-      audio.muted = video.muted;
-      audio.playbackRate = video.playbackRate;
-      if (wasPlaying) audio.play().catch(() => {});
+
+      if (isHLSUrl(opts.audioSrc) && HLS.isSupported()) {
+        // HLS audio source — attach a dedicated HLS.js instance to the audio element
+        if (!audioHlsRef.current) {
+          const audioHls = new HLS({
+            autoStartLoad: true,
+            startLevel: -1,
+            enableWorker: true,
+            maxBufferLength: 30,
+            ...opts.hlsConfig,
+          });
+          audioHls.attachMedia(audio);
+          audioHls.loadSource(opts.audioSrc);
+          audioHls.once(Events.MANIFEST_PARSED, () => {
+            audio.currentTime = pos;
+            audio.volume = volume;
+            audio.muted = muted;
+            audio.playbackRate = playbackRate;
+            if (wasPlaying) audio.play().catch(() => {});
+          });
+          audioHlsRef.current = audioHls;
+        } else {
+          // Already initialized — just seek and resume
+          audio.currentTime = pos;
+          if (wasPlaying) audio.play().catch(() => {});
+        }
+      } else {
+        // Direct audio source (MP3, AAC, OGG, etc.)
+        if (!audio.getAttribute("src")) audio.src = opts.audioSrc;
+        audio.currentTime = pos;
+        audio.volume = volume;
+        audio.muted = muted;
+        audio.playbackRate = playbackRate;
+        if (wasPlaying) audio.play().catch(() => {});
+      }
       // Schedule bandwidth recovery probes if this was an automatic switch
       if (autoSwitchedRef.current) {
         if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
@@ -630,6 +730,13 @@ export function useVideoPlayer(
       const pos = audio.currentTime;
       const wasPlaying = !audio.paused;
       audio.pause();
+      // Destroy audio HLS instance if one was created
+      if (audioHlsRef.current) {
+        audioHlsRef.current.destroy();
+        audioHlsRef.current = null;
+        audio.removeAttribute("src");
+        audio.load();
+      }
       // Cancel any pending recovery probe
       if (recoveryTimerRef.current) {
         clearTimeout(recoveryTimerRef.current);
@@ -708,7 +815,11 @@ export function useVideoPlayer(
   const setQualityLevel = useCallback((level: number) => {
     const hls = hlsRef.current;
     if (!hls) return;
-    hls.currentLevel = level;
+    // nextLevel queues the switch at the next segment boundary — no buffer
+    // flush, no freeze, no currentTime jump. The video keeps playing at the
+    // current quality until the next segment loads at the chosen level.
+    // (Same behaviour as YouTube manual quality switching.)
+    hls.nextLevel = level;
     setState((prev) => ({ ...prev, currentQualityLevel: level }));
   }, []);
 

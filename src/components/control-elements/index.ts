@@ -4,6 +4,8 @@ import {
   FullscreenButton,
   PiPButton,
   TheaterButton,
+  SkipBackButton,
+  SkipForwardButton,
 } from "./control-buttons";
 import VolumeControl from "./volume-control";
 import ProgressBar from "./progress-bar";
@@ -16,6 +18,8 @@ export type {
   FullscreenButtonProps,
   PiPButtonProps,
   TheaterButtonProps,
+  SkipBackButtonProps,
+  SkipForwardButtonProps,
 } from "./control-buttons";
 
 export type { VolumeControlProps } from "./volume-control";
@@ -29,6 +33,8 @@ export {
   FullscreenButton,
   PiPButton,
   TheaterButton,
+  SkipBackButton,
+  SkipForwardButton,
 } from "./control-buttons";
 
 export { default as VolumeControl } from "./volume-control";
@@ -42,6 +48,8 @@ export const ControlElements = {
   FullscreenButton,
   PiPButton,
   TheaterButton,
+  SkipBackButton,
+  SkipForwardButton,
   VolumeControl,
   ProgressBar,
   SettingsMenu,
