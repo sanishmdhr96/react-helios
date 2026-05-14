@@ -151,4 +151,39 @@ export const SkipForwardButton = memo<SkipForwardButtonProps>(({ onClick, second
 ));
 SkipForwardButton.displayName = "SkipForwardButton";
 
-export default { PlayButton, PauseButton, FullscreenButton, PiPButton, TheaterButton, SkipBackButton, SkipForwardButton };
+export interface PrevButtonProps { onClick: () => void; disabled?: boolean; }
+export interface NextButtonProps { onClick: () => void; disabled?: boolean; }
+
+export const PrevButton = memo<PrevButtonProps>(({ onClick, disabled }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className="controlButton"
+    aria-label="Previous video"
+    title="Previous (B)"
+    style={{ opacity: disabled ? 0.35 : undefined }}
+  >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
+    </svg>
+  </button>
+));
+PrevButton.displayName = "PrevButton";
+
+export const NextButton = memo<NextButtonProps>(({ onClick, disabled }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className="controlButton"
+    aria-label="Next video"
+    title="Next (N)"
+    style={{ opacity: disabled ? 0.35 : undefined }}
+  >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+    </svg>
+  </button>
+));
+NextButton.displayName = "NextButton";
+
+export default { PlayButton, PauseButton, FullscreenButton, PiPButton, TheaterButton, SkipBackButton, SkipForwardButton, PrevButton, NextButton };

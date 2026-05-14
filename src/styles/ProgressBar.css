@@ -141,6 +141,13 @@
   opacity: 1;
 }
 
+/* Always show handle on touch devices — hover never fires on mobile */
+@media (hover: none) and (pointer: coarse) {
+  .scrubHandle {
+    opacity: 0.8;
+  }
+}
+
 .scrubHandle.dragging {
   transform: translate(-50%, -50%) scale(1.25);
   transition: none;

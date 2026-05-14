@@ -270,6 +270,7 @@ To disable the preview entirely:
 |--------|------|---------|-------------|
 | `autoHideControls` | `boolean` | `true` | Hide control bar on mouse leave when playing (video mode only) |
 | `skipSeconds` | `number` | `15` | Seconds to jump when the rewind / skip-forward buttons are clicked. Set to `0` to hide the buttons. Buttons are always hidden on mobile screens (≤ 480 px) to save space, matching YouTube's mobile layout |
+| `showReplayOverlay` | `boolean` | `true` | Show a dim backdrop with a centered "Replay" button when playback ends. Works in both video and audio mode. Click the button (or seek backward) to dismiss. Set to `false` to disable |
 
 ### `options` — Audio mode
 

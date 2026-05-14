@@ -24,6 +24,7 @@ export type {
   ContextMenuItem,
   ControlBarItem,
   ManualQualityLevel,
+  PlaylistItem,
 } from "./lib/types";
 
 // Utilities

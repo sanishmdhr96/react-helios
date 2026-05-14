@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, type ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 interface AudioModeOverlayProps {
   poster?: string;

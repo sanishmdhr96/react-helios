@@ -296,14 +296,39 @@ const EXAMPLE_CODE: Record<string, string> = {
   "theater": CODE_THEATER,
 };
 
+// ─── Playlist demo data ───────────────────────────────────────────────────────
+
+const DEMO_PLAYLIST = [
+  {
+    src: "https://luniba.com/high_quality_video/index.m3u8",
+    title: "Sample Lecture (HLS)",
+    poster: "https://luniba.com/high_quality_video/thumbnails/thumbnail.png",
+  },
+  {
+    src: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    title: "Big Buck Bunny (HLS)",
+    poster: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Big_buck_bunny_poster_big.jpg/640px-Big_buck_bunny_poster_big.jpg",
+  },
+  {
+    src: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8",
+    title: "Apple BipBop (FMP4 HLS)",
+  },
+  {
+    src: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_master.m3u8",
+    title: "Apple BipBop (Classic HLS)",
+  },
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function DemoPage() {
   const playerRef = useRef<VideoPlayerRef>(null);
+  const playlistPlayerRef = useRef<VideoPlayerRef>(null);
   const [activeTab, setActiveTab] = useState("demo");
   const [activeExTab, setActiveExTab] = useState("minimal");
   const [isTheater, setIsTheater] = useState(false);
   const [eventLog, setEventLog] = useState<string[]>([]);
+  const [playlistIndex, setPlaylistIndex] = useState(0);
 
   const addEvent = useCallback((msg: string) => {
     const t = new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -368,7 +393,7 @@ export default function DemoPage() {
         {/* ── Live Demo ──────────────────────────────────────────────────────── */}
         <section className="bg-white rounded-2xl p-10 mb-8 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
           <div className="flex gap-4 mb-8 border-b-2 border-gray-100 overflow-x-auto">
-            {["demo", "features", "shortcuts"].map(tab => (
+            {["demo", "playlist", "features", "shortcuts"].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -518,6 +543,127 @@ export default function DemoPage() {
                 </div>
               ))}
             </div>
+          )}
+
+          {activeTab === "playlist" && (
+            <>
+              {/* Now Playing label */}
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-[#667eea]">Now Playing</span>
+                <span className="text-sm font-semibold text-gray-700">
+                  {DEMO_PLAYLIST[playlistIndex].title}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {playlistIndex + 1} / {DEMO_PLAYLIST.length}
+                </span>
+              </div>
+
+              {/* Player */}
+              <div className="aspect-video w-full mb-6 shadow-[0_10px_40px_rgba(0,0,0,0.1)] rounded-xl overflow-hidden">
+                <VideoPlayer
+                  ref={playlistPlayerRef}
+                  playlist={DEMO_PLAYLIST}
+                  controls
+                  options={{
+                    autoplay: false,
+                    enablePreview: false,
+                    skipSeconds: 15,
+                    onPlaylistIndexChange: (i) => {
+                      setPlaylistIndex(i);
+                      addEvent(`▶ track ${i + 1}: ${DEMO_PLAYLIST[i].title}`);
+                    },
+                    onPlaylistEnded: () => addEvent("playlist ended"),
+                    onPlay: () => addEvent("play"),
+                    onPause: () => addEvent("pause"),
+                    onEnded: () => addEvent("ended"),
+                  }}
+                />
+              </div>
+
+              {/* Track listing */}
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Playlist</h3>
+              <div className="flex flex-col gap-2 mb-6">
+                {DEMO_PLAYLIST.map((item, i) => (
+                  <div
+                    key={i}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      playlistPlayerRef.current?.goToIndex(i);
+                      setPlaylistIndex(i);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        playlistPlayerRef.current?.goToIndex(i);
+                        setPlaylistIndex(i);
+                      }
+                    }}
+                    className={`flex items-center gap-4 p-3 rounded-xl border-2 text-left transition-all duration-150 cursor-pointer ${
+                      i === playlistIndex
+                        ? "border-[#667eea] bg-[#667eea]/5"
+                        : "border-gray-100 bg-gray-50 hover:border-[#667eea]/40 hover:bg-white"
+                    }`}
+                  >
+                    {/* Track number / playing indicator */}
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: i === playlistIndex ? "#667eea" : "#e5e7eb" }}>
+                      {i === playlistIndex ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      ) : (
+                        <span className="text-xs font-bold text-gray-500">{i + 1}</span>
+                      )}
+                    </div>
+
+                    {/* Title */}
+                    <span className={`text-sm font-semibold flex-1 ${i === playlistIndex ? "text-[#667eea]" : "text-gray-700"}`}>
+                      {item.title}
+                    </span>
+
+                    {/* Prev / Next quick-nav — valid inside a div, not a button */}
+                    {i === playlistIndex && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); playlistPlayerRef.current?.goPrev(); }}
+                          disabled={i === 0}
+                          className="p-1 rounded bg-transparent border-0 cursor-pointer text-[#667eea] disabled:opacity-30"
+                          title="Previous"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); playlistPlayerRef.current?.goNext(); }}
+                          disabled={i === DEMO_PLAYLIST.length - 1}
+                          className="p-1 rounded bg-transparent border-0 cursor-pointer text-[#667eea] disabled:opacity-30"
+                          title="Next"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Event log */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Event Log</h3>
+                  <button onClick={() => setEventLog([])} className="text-xs text-gray-400 hover:text-gray-600 bg-transparent border-0 cursor-pointer">Clear</button>
+                </div>
+                <div className="bg-[#1e1e1e] rounded-xl p-4 font-mono text-sm min-h-16">
+                  {eventLog.length === 0 ? (
+                    <span className="text-gray-600">Play a video or switch tracks…</span>
+                  ) : (
+                    eventLog.map((msg, i) => (
+                      <div key={i} className={i === 0 ? "text-[#4ec9b0]" : "text-gray-500"}>{msg}</div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
           {activeTab === "shortcuts" && (

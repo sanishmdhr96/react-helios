@@ -108,6 +108,8 @@ export interface PlayerState {
   isTheaterMode: boolean;
   /** True when the player is in audio-only mode (video hidden, waveform shown). */
   isAudioMode: boolean;
+  /** True when playback has reached the end and not yet been replayed or seeked back. */
+  isEnded: boolean;
   isLive: boolean;
   qualityLevels: HLSQualityLevel[];
   /** The user's quality selection: -1 = Auto, N = specific level id. Controls the checkmark in the settings menu. */
@@ -134,6 +136,14 @@ export interface VideoPlayerRef {
   toggleAudioMode: () => void;
   getState: () => PlayerState;
   getVideoElement: () => HTMLVideoElement | null;
+  /** Advance to the next item in the playlist. No-op when no playlist is provided. */
+  goNext: () => void;
+  /** Go back to the previous item in the playlist. No-op when no playlist is provided. */
+  goPrev: () => void;
+  /** Jump to a specific playlist index. No-op when no playlist is provided. */
+  goToIndex: (index: number) => void;
+  /** Returns the current playlist index, or 0 when no playlist is provided. */
+  currentPlaylistIndex: () => number;
 }
 
 export interface ManualQualityLevel {
@@ -156,6 +166,13 @@ export interface ControlBarItem {
   onClick: () => void;
 }
 
+export interface PlaylistItem {
+  src: string;
+  poster?: string;
+  title?: string;
+  audioSrc?: string;
+}
+
 export interface VideoPlayerOptions {
   // Playback
   autoplay?: boolean;
@@ -175,6 +192,11 @@ export interface VideoPlayerOptions {
   thumbnailVttBaseUrl?: string;
   // UI
   autoHideControls?: boolean;
+  /**
+   * Show a replay overlay (backdrop + replay button) when playback ends.
+   * Default: `true`. Set to `false` to disable.
+   */
+  showReplayOverlay?: boolean;
   /**
    * Seconds to jump when the skip-back / skip-forward buttons are clicked.
    * Set to `0` to hide the buttons. Default: `15`.
@@ -221,6 +243,19 @@ export interface VideoPlayerOptions {
    * to video if conditions have improved. Default: `30000` (30 seconds).
    */
   audioModeRecoveryInterval?: number;
+  // Playlist
+  /** Loop back to the first item after the last one ends. Default: false. */
+  loopPlaylist?: boolean;
+  /**
+   * Seconds to show the "Up Next" countdown before auto-advancing to the next playlist item.
+   * Set to `0` to skip the overlay and advance immediately.
+   * Default: `5`. Only applies when a `playlist` is provided.
+   */
+  upNextDelay?: number;
+  /** Called whenever the active playlist index changes (auto-advance or manual prev/next). */
+  onPlaylistIndexChange?: (index: number, item: PlaylistItem) => void;
+  /** Called when the last item in the playlist ends and loopPlaylist is false. */
+  onPlaylistEnded?: () => void;
   // Callbacks
   onPlay?: () => void;
   onPause?: () => void;
@@ -252,7 +287,10 @@ export interface VideoPlayerOptions {
 }
 
 export interface VideoPlayerProps {
-  src: string;
+  /** Single video source. Ignored when `playlist` is provided. */
+  src?: string;
+  /** Array of videos to play in sequence. When provided, `src` is ignored. */
+  playlist?: PlaylistItem[];
   poster?: string;
   className?: string;
   controls?: boolean;

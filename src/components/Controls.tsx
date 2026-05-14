@@ -42,6 +42,10 @@ interface ControlsProps {
   controlBarItems?: ControlBarItem[];
   autoHideControls: boolean;
   skipSeconds: number;
+  hasPrev?: boolean;
+  hasNext?: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 export const Controls = memo<ControlsProps>(function Controls({
@@ -76,6 +80,10 @@ export const Controls = memo<ControlsProps>(function Controls({
   controlBarItems,
   autoHideControls,
   skipSeconds,
+  hasPrev,
+  hasNext,
+  onPrev,
+  onNext,
 }) {
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showControls, setShowControls] = useState(true);
@@ -86,8 +94,8 @@ export const Controls = memo<ControlsProps>(function Controls({
    * currentTime/duration are read directly from the video element so the
    * keyboard shortcuts always see fresh values without subscribing to state.
    */
-  const liveRef = useRef({ isPlaying, volume, isMuted, isLive });
-  liveRef.current = { isPlaying, volume, isMuted, isLive };
+  const liveRef = useRef({ isPlaying, volume, isMuted, isLive, hasPrev, hasNext, onPrev, onNext });
+  liveRef.current = { isPlaying, volume, isMuted, isLive, hasPrev, hasNext, onPrev, onNext };
 
   // ─── Auto-hide controls ──────────────────────────────────────────────────
   useEffect(() => {
@@ -145,7 +153,7 @@ export const Controls = memo<ControlsProps>(function Controls({
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
 
-      const { isPlaying: playing, volume: vol, isLive: live } = liveRef.current;
+      const { isPlaying: playing, volume: vol, isLive: live, hasPrev: canPrev, hasNext: canNext, onPrev: prevFn, onNext: nextFn } = liveRef.current;
       // Read time/duration directly from the video element — always fresh
       const ct = videoRef.current?.currentTime ?? 0;
       const dur = videoRef.current?.duration ?? 0;
@@ -190,6 +198,14 @@ export const Controls = memo<ControlsProps>(function Controls({
         case "KeyL":
           e.preventDefault();
           if (live) playerRef.seekToLive();
+          break;
+        case "KeyN":
+          e.preventDefault();
+          if (canNext) nextFn?.();
+          break;
+        case "KeyB":
+          e.preventDefault();
+          if (canPrev) prevFn?.();
           break;
         case "Digit0": case "Digit1": case "Digit2": case "Digit3": case "Digit4":
         case "Digit5": case "Digit6": case "Digit7": case "Digit8": case "Digit9": {
@@ -261,10 +277,18 @@ export const Controls = memo<ControlsProps>(function Controls({
         />
 
         <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 4 }}>
+          {onPrev !== undefined && (
+            <ControlElements.PrevButton onClick={onPrev} disabled={!hasPrev} />
+          )}
+
           {isPlaying ? (
             <ControlElements.PauseButton onClick={handlePause} />
           ) : (
             <ControlElements.PlayButton onClick={handlePlay} />
+          )}
+
+          {onNext !== undefined && (
+            <ControlElements.NextButton onClick={onNext} disabled={!hasNext} />
           )}
 
           {skipSeconds > 0 && (

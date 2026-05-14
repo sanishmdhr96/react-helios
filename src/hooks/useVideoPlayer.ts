@@ -52,6 +52,7 @@ const DEFAULT_STATE: PlayerState = {
   isPictureInPicture: false,
   isTheaterMode: false,
   isAudioMode: false,
+  isEnded: false,
   isBuffering: false,
   bufferedRanges: [],
   error: null,
@@ -155,6 +156,7 @@ export function useVideoPlayer(
       duration: 0,
       error: null,
       isPlaying: false,
+      isEnded: false,
       // Keep isBuffering true while the manifest loads — the video `waiting` event
       // only fires once buffering starts, which is after the manifest is parsed.
       // Without this, the player shows a blank/frozen frame with no spinner.
@@ -425,7 +427,7 @@ export function useVideoPlayer(
     if (optionsRef.current.loop) video.loop = true;
 
     const handlePlay = () => {
-      setState((prev) => ({ ...prev, isPlaying: true }));
+      setState((prev) => ({ ...prev, isPlaying: true, isEnded: false }));
       optionsRef.current.onPlay?.();
     };
     const handlePause = () => {
@@ -433,8 +435,14 @@ export function useVideoPlayer(
       optionsRef.current.onPause?.();
     };
     const handleEnded = () => {
-      setState((prev) => ({ ...prev, isPlaying: false }));
+      if (video.loop) return;
+      setState((prev) => ({ ...prev, isPlaying: false, isEnded: true }));
       optionsRef.current.onEnded?.();
+    };
+    const handleSeeking = () => {
+      if (stateRef.current.isEnded) {
+        setState((prev) => ({ ...prev, isEnded: false }));
+      }
     };
     const handleTimeUpdate = () => {
       // In audio mode the audio element drives time updates instead
@@ -538,6 +546,7 @@ export function useVideoPlayer(
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     video.addEventListener("ended", handleEnded);
+    video.addEventListener("seeking", handleSeeking);
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("durationchange", handleDurationChange);
     video.addEventListener("volumechange", handleVolumeChange);
@@ -555,6 +564,7 @@ export function useVideoPlayer(
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handleEnded);
+      video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("durationchange", handleDurationChange);
       video.removeEventListener("volumechange", handleVolumeChange);
@@ -583,7 +593,7 @@ export function useVideoPlayer(
     if (!audio || !optionsRef.current.audioSrc) return;
 
     const handlePlay = () => {
-      setState((prev) => ({ ...prev, isPlaying: true }));
+      setState((prev) => ({ ...prev, isPlaying: true, isEnded: false }));
       optionsRef.current.onPlay?.();
     };
     const handlePause = () => {
@@ -591,8 +601,14 @@ export function useVideoPlayer(
       optionsRef.current.onPause?.();
     };
     const handleEnded = () => {
-      setState((prev) => ({ ...prev, isPlaying: false }));
+      if (audio.loop) return;
+      setState((prev) => ({ ...prev, isPlaying: false, isEnded: true }));
       optionsRef.current.onEnded?.();
+    };
+    const handleSeeking = () => {
+      if (stateRef.current.isEnded) {
+        setState((prev) => ({ ...prev, isEnded: false }));
+      }
     };
     const handleWaiting = () => {
       setState((prev) => ({ ...prev, isBuffering: true }));
@@ -631,6 +647,7 @@ export function useVideoPlayer(
     audio.addEventListener("play", handlePlay);
     audio.addEventListener("pause", handlePause);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("seeking", handleSeeking);
     audio.addEventListener("waiting", handleWaiting);
     audio.addEventListener("canplay", handleCanPlay);
     audio.addEventListener("playing", handlePlaying);
@@ -643,6 +660,7 @@ export function useVideoPlayer(
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("seeking", handleSeeking);
       audio.removeEventListener("waiting", handleWaiting);
       audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("playing", handlePlaying);
@@ -922,6 +940,11 @@ export function useVideoPlayer(
       toggleAudioMode,
       getState,
       getVideoElement,
+      // Overridden by VideoPlayer when a playlist is provided
+      goNext: () => {},
+      goPrev: () => {},
+      goToIndex: () => {},
+      currentPlaylistIndex: () => 0,
     }),
     [
       play,

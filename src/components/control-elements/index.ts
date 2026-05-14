@@ -6,6 +6,8 @@ import {
   TheaterButton,
   SkipBackButton,
   SkipForwardButton,
+  PrevButton,
+  NextButton,
 } from "./control-buttons";
 import VolumeControl from "./volume-control";
 import ProgressBar from "./progress-bar";
@@ -20,6 +22,8 @@ export type {
   TheaterButtonProps,
   SkipBackButtonProps,
   SkipForwardButtonProps,
+  PrevButtonProps,
+  NextButtonProps,
 } from "./control-buttons";
 
 export type { VolumeControlProps } from "./volume-control";
@@ -35,6 +39,8 @@ export {
   TheaterButton,
   SkipBackButton,
   SkipForwardButton,
+  PrevButton,
+  NextButton,
 } from "./control-buttons";
 
 export { default as VolumeControl } from "./volume-control";
@@ -50,6 +56,8 @@ export const ControlElements = {
   TheaterButton,
   SkipBackButton,
   SkipForwardButton,
+  PrevButton,
+  NextButton,
   VolumeControl,
   ProgressBar,
   SettingsMenu,

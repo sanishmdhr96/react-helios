@@ -97,10 +97,11 @@
 
 /* ─── Mobile overrides ───────────────────────────────────────────────────── */
 @media (max-width: 480px) {
+  /* 44 × 44 px — meets Apple HIG and WCAG 2.5.5 touch-target minimum */
   .controlButton {
     padding: 8px;
-    min-width: 36px;
-    min-height: 36px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   /* Hide skip buttons — not enough horizontal space on phone screens */
@@ -120,6 +121,13 @@
   position: relative;
   display: flex;
   align-items: center;
+}
+
+/* Hide the slider on phones — mute button stays; slider steals too much space */
+@media (max-width: 480px) {
+  .volumeSlider {
+    display: none;
+  }
 }
 
 .volumeSlider {
@@ -167,6 +175,12 @@
   letter-spacing: 0.01em;
 }
 
+@media (max-width: 640px) {
+  .timeDisplay {
+    font-size: 12px;
+  }
+}
+
 /* ─── Settings menu ──────────────────────────────────────────────────────── */
 .settingsContainer {
   position: relative;
@@ -183,7 +197,8 @@
   z-index: 30;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(12px);
-  overflow: hidden;
+  overflow-y: auto;
+  max-height: 70vh;
 }
 
 /* ── Main panel rows ── */
