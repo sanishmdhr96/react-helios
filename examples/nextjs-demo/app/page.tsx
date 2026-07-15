@@ -5,7 +5,7 @@ import {
   Play, Pause, SkipForward, Volume2, Maximize, PictureInPicture,
   Zap, Smartphone, Radio, Layers, MonitorPlay, Bookmark,
 } from "lucide-react";
-import { VideoPlayer } from "react-helios";
+import { VideoPlayer, AudioPlayer } from "react-helios";
 import type { VideoError, VideoPlayerRef } from "react-helios";
 import "react-helios/styles";
 
@@ -708,6 +708,20 @@ export default function DemoPage() {
               </div>
             </>
           )}
+        </section>
+
+        {/* ── Audio Player Demo ─────────────────────────────────────────────── */}
+        <section className="bg-white rounded-2xl p-10 mb-8 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
+          <h2 className="text-3xl font-extrabold mb-2 text-gray-800">Audio Player</h2>
+          <p className="text-gray-500 mb-8 leading-relaxed">
+            Plain audio-only player — HLS (.m3u8) or direct audio sources. Separate from VideoPlayer&apos;s audio mode.
+          </p>
+          <AudioPlayer
+            src="https://luniba.com/high_quality_video/audio/testvideo.m3u8"
+            title="Test Video Audio"
+            artist="react-helios demo"
+            poster="https://luniba.com/high_quality_video/thumbnails/thumbnail.png"
+          />
         </section>
 
         {/* ── Usage Examples ────────────────────────────────────────────────── */}

@@ -1,7 +1,7 @@
 {
   "name": "react-helios",
-  "version": "2.11.0",
-  "description": "Production-grade React video player with HLS, zero-cost audio mode, adaptive quality, live streams, subtitles, VTT sprite thumbnail preview, skip buttons, and mobile-responsive controls",
+  "version": "2.14.0",
+  "description": "Production-grade React video player with HLS, playlist support, Up Next overlay, zero-cost audio mode, adaptive quality, live streams, subtitles, VTT sprite thumbnail preview, skip buttons, mobile-responsive controls, and a standalone HLS-capable AudioPlayer",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -47,7 +47,9 @@
     "sprite-sheet",
     "thumbnail-preview",
     "audio-mode",
-    "audio-player"
+    "audio-player",
+    "playlist",
+    "up-next"
   ],
   "author": "Sanish Manandhar <mail.sanishmanandhar@gmail.com>",
   "license": "MIT",

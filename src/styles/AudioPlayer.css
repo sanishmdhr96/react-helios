@@ -1,0 +1,100 @@
+/* ─── Audio Player root ───────────────────────────────────────────────────── */
+/* All colours are CSS custom properties — override inline via the `theme`
+   option, or target this class directly for full control. */
+.rvp-audio-player {
+  --rvp-audio-bg: #181818;
+  --rvp-audio-text: #ffffff;
+  --rvp-audio-subtext: rgba(255, 255, 255, 0.6);
+  --rvp-audio-accent: #3b82f6;
+  --rvp-audio-track: rgba(255, 255, 255, 0.25);
+  --rvp-audio-icon: #ffffff;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 480px;
+  padding: 16px;
+  border-radius: 12px;
+  background-color: var(--rvp-audio-bg);
+  outline: none;
+  user-select: none;
+}
+
+/* ─── Meta row (artwork / title / artist) ─────────────────────────────────── */
+.rvp-audio-player-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rvp-audio-player-artwork {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.rvp-audio-player-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rvp-audio-player-title {
+  color: var(--rvp-audio-text);
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rvp-audio-player-artist {
+  color: var(--rvp-audio-subtext);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Controls row ────────────────────────────────────────────────────────── */
+.rvp-audio-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.rvp-audio-player-error {
+  color: #ff6b6b;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ─── Re-skin the shared control-elements to follow the theme, scoped to
+   this component only — VideoPlayer's controls are untouched. ───────────── */
+.rvp-audio-player .controlButton {
+  color: var(--rvp-audio-icon);
+}
+
+.rvp-audio-player .timeDisplay {
+  color: var(--rvp-audio-text);
+}
+
+.rvp-audio-player .progressBackground {
+  background-color: var(--rvp-audio-track);
+}
+
+.rvp-audio-player .progressFilled {
+  background-color: var(--rvp-audio-accent);
+}
+
+.rvp-audio-player .scrubHandle {
+  background-color: var(--rvp-audio-text);
+}
+
+.rvp-audio-player .rvp-waveform-bar {
+  background: var(--rvp-audio-accent);
+}

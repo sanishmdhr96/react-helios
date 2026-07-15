@@ -2,6 +2,10 @@
 import VideoPlayer from "./components/VideoPlayer";
 export { VideoPlayer };
 
+// Plain audio player (HLS + direct audio sources)
+import AudioPlayer from "./components/AudioPlayer";
+export { AudioPlayer };
+
 // Controls and Control Elements
 export { Controls } from "./components/Controls";
 export * as ControlElements from "./components/control-elements";
@@ -25,6 +29,10 @@ export type {
   ControlBarItem,
   ManualQualityLevel,
   PlaylistItem,
+  AudioPlayerProps,
+  AudioPlayerOptions,
+  AudioPlayerRef,
+  AudioPlayerState,
 } from "./lib/types";
 
 // Utilities

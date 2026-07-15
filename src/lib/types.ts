@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, CSSProperties } from "react";
 import type { HlsConfig } from "hls.js";
 
 /**
@@ -247,11 +247,55 @@ export interface VideoPlayerOptions {
   /** Loop back to the first item after the last one ends. Default: false. */
   loopPlaylist?: boolean;
   /**
+   * Control visibility of the Prev / Next buttons in the control bar.
+   * - `true`  — always show, even without a playlist
+   * - `false` — always hide, even with a playlist
+   * - `undefined` (default) — show automatically when a `playlist` is provided,
+   *   or when `onPrevClick` / `onNextClick` custom handlers are set
+   */
+  showPlaylistControls?: boolean;
+  /**
    * Seconds to show the "Up Next" countdown before auto-advancing to the next playlist item.
    * Set to `0` to skip the overlay and advance immediately.
-   * Default: `5`. Only applies when a `playlist` is provided.
+   * Default: `5`. Applies to both `playlist` mode and `nextVideo` mode.
    */
   upNextDelay?: number;
+  /**
+   * Show the Up Next overlay at the end of a single (non-playlist) video.
+   * The player does NOT load this video — it only shows the overlay with the
+   * thumbnail and title. Handle navigation in `onUpNextComplete`.
+   */
+  nextVideo?: Pick<PlaylistItem, 'src' | 'poster' | 'title'>;
+  /**
+   * Called when the Up Next countdown completes (or the user clicks the thumbnail)
+   * while in single-video mode (`nextVideo` is set, no `playlist`).
+   * Use this to navigate to the next page, push a router route, etc.
+   */
+  onUpNextComplete?: () => void;
+  /**
+   * Custom handler for the Prev button click.
+   * When provided, replaces the built-in playlist `goPrev()`.
+   * The Prev button is shown automatically when this is set.
+   * Use `prevEnabled` to control whether it appears active or dimmed.
+   */
+  onPrevClick?: () => void;
+  /**
+   * Custom handler for the Next button click.
+   * When provided, replaces the built-in playlist `goNext()`.
+   * The Next button is shown automatically when this is set.
+   * Use `nextEnabled` to control whether it appears active or dimmed.
+   */
+  onNextClick?: () => void;
+  /**
+   * Whether the Prev button appears active (not dimmed).
+   * Only relevant when `onPrevClick` is provided. Default: `true`.
+   */
+  prevEnabled?: boolean;
+  /**
+   * Whether the Next button appears active (not dimmed).
+   * Only relevant when `onNextClick` is provided. Default: `true`.
+   */
+  nextEnabled?: boolean;
   /** Called whenever the active playlist index changes (auto-advance or manual prev/next). */
   onPlaylistIndexChange?: (index: number, item: PlaylistItem) => void;
   /** Called when the last item in the playlist ends and loopPlaylist is false. */
@@ -295,5 +339,88 @@ export interface VideoPlayerProps {
   className?: string;
   controls?: boolean;
   options?: VideoPlayerOptions;
+}
+
+// ── Plain audio player ──────────────────────────────────────────────────────
+
+export interface AudioPlayerState {
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  isMuted: boolean;
+  playbackRate: number;
+  isBuffering: boolean;
+  bufferedRanges: BufferedRange[];
+  error: VideoError | null;
+  isLive: boolean;
+}
+
+export interface AudioPlayerRef {
+  play: () => Promise<void>;
+  pause: () => void;
+  seek: (time: number) => void;
+  setVolume: (volume: number) => void;
+  toggleMute: () => void;
+  setPlaybackRate: (rate: PlaybackRate) => void;
+  getState: () => AudioPlayerState;
+  getAudioElement: () => HTMLAudioElement | null;
+}
+
+export interface AudioPlayerOptions {
+  autoplay?: boolean;
+  muted?: boolean;
+  loop?: boolean;
+  preload?: "none" | "metadata" | "auto";
+  /** Enable HLS.js playback for `.m3u8` audio sources. Default: `true`. */
+  enableHLS?: boolean;
+  hlsConfig?: Partial<HlsConfig>;
+  crossOrigin?: "anonymous" | "use-credentials";
+  /** Seconds to jump when the skip-back / skip-forward buttons are clicked. Set to `0` to hide them. Default: `15`. */
+  skipSeconds?: number;
+  /**
+   * Seek bar style. `"bar"` — simple linear progress bar (default).
+   * `"waveform"` — animated bar-style waveform (same look as VideoPlayer's audio mode).
+   */
+  progressBarVariant?: "bar" | "waveform";
+  /**
+   * Show the poster/title/artist row when any of `poster` / `title` / `artist` are provided.
+   * Set to `false` to keep those props (e.g. for `aria-label` use elsewhere) without rendering them. Default: `true`.
+   */
+  showMeta?: boolean;
+  /**
+   * Colour overrides — each field maps to a CSS custom property on the player root,
+   * so unset fields keep the built-in dark theme. For full control, target the
+   * `.rvp-audio-player` class (and its `rvp-audio-player-*` children) with your own CSS.
+   */
+  theme?: {
+    background?: string;
+    textColor?: string;
+    secondaryTextColor?: string;
+    accentColor?: string;
+    trackColor?: string;
+    iconColor?: string;
+  };
+  onPlay?: () => void;
+  onPause?: () => void;
+  onEnded?: () => void;
+  onError?: (error: VideoError) => void;
+  onTimeUpdate?: (time: number) => void;
+  onDurationChange?: (duration: number) => void;
+  onBuffering?: (isBuffering: boolean) => void;
+}
+
+export interface AudioPlayerProps {
+  /** Audio source URL — a direct file (MP3, AAC, OGG, …) or an HLS `.m3u8` stream. */
+  src: string;
+  /** Optional artwork shown above the controls. */
+  poster?: string;
+  title?: string;
+  artist?: string;
+  className?: string;
+  /** Inline styles applied to the player root — merged after `theme`, so it can also override CSS custom properties. */
+  style?: CSSProperties;
+  controls?: boolean;
+  options?: AudioPlayerOptions;
 }
 

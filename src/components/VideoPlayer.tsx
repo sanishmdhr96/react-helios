@@ -42,7 +42,14 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       audioModeSwitchLevel,
       audioModeRecoveryInterval,
       loopPlaylist = false,
+      showPlaylistControls,
       upNextDelay = 5,
+      nextVideo,
+      onUpNextComplete,
+      onPrevClick,
+      onNextClick,
+      prevEnabled,
+      nextEnabled,
       onPlaylistIndexChange,
       onPlaylistEnded,
       onPlay,
@@ -76,6 +83,11 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
 
     const hasPrev = hasPlaylist && currentIndex > 0;
     const hasNext = hasPlaylist && currentIndex < playlist!.length - 1;
+
+    // Show nav buttons when: explicitly set, or playlist exists, or custom handlers provided
+    const showNavControls = showPlaylistControls !== undefined
+      ? showPlaylistControls
+      : hasPlaylist || onPrevClick !== undefined || onNextClick !== undefined;
 
     // Next item for the Up Next overlay (respects loopPlaylist)
     const upNextIndex = hasPlaylist
@@ -121,11 +133,27 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     // Cancel countdown — replay overlay appears since isEnded stays true
     const cancelUpNext = useCallback(() => setUpNextActive(false), []);
 
-    // Skip countdown — advance immediately
+    // Skip countdown — advance immediately (playlist) or fire app callback (nextVideo)
     const playNextNow = useCallback(() => {
       setUpNextActive(false);
-      goNext();
-    }, [goNext]);
+      if (hasPlaylist) {
+        goNext();
+      } else {
+        onUpNextComplete?.();
+      }
+    }, [hasPlaylist, goNext, onUpNextComplete]);
+
+    // Resolve overlay item: playlist next item OR single-video nextVideo prop
+    const upNextItemResolved = upNextItem ?? nextVideo ?? null;
+
+    // Resolve effective prev/next handlers — custom overrides built-in playlist navigation
+    const effectiveOnPrev = onPrevClick ?? (hasPlaylist ? goPrev : undefined);
+    const effectiveOnNext = onNextClick ?? (hasPlaylist ? goNext : undefined);
+    // Resolve enabled state — custom props when using custom handlers, playlist state otherwise
+    // prevEnabled/nextEnabled always win when explicitly provided (even false).
+    // Fall back: active by default when a custom handler is set, else use playlist state.
+    const effectiveHasPrev = prevEnabled ?? (onPrevClick !== undefined ? true : hasPrev);
+    const effectiveHasNext = nextEnabled ?? (onNextClick !== undefined ? true : hasNext);
 
     // Clear Up Next whenever the track changes (manual prev/next/goToIndex navigation)
     useEffect(() => {
@@ -141,7 +169,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           if (upNextDelay > 0) {
             setUpNextActive(true);
           } else {
-            // Advance immediately — no overlay
             if (next < playlist!.length) {
               onPlaylistIndexChange?.(next, playlist![next]);
               setCurrentIndex(next);
@@ -153,9 +180,17 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           return;
         }
         onPlaylistEnded?.();
+      } else if (nextVideo) {
+        // Single video with a next-video teaser — show overlay, app handles navigation
+        if (upNextDelay > 0) {
+          setUpNextActive(true);
+        } else {
+          onUpNextComplete?.();
+        }
+        return;
       }
       onEnded?.();
-    }, [hasPlaylist, currentIndex, playlist, loopPlaylist, upNextDelay, onPlaylistIndexChange, onPlaylistEnded, onEnded]);
+    }, [hasPlaylist, currentIndex, playlist, loopPlaylist, upNextDelay, nextVideo, onUpNextComplete, onPlaylistIndexChange, onPlaylistEnded, onEnded]);
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -406,10 +441,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             controlBarItems={controlBarItems}
             autoHideControls={autoHideControls}
             skipSeconds={skipSeconds}
-            hasPrev={hasPlaylist ? hasPrev : undefined}
-            hasNext={hasPlaylist ? hasNext : undefined}
-            onPrev={hasPlaylist ? goPrev : undefined}
-            onNext={hasPlaylist ? goNext : undefined}
+            hasPrev={showNavControls ? effectiveHasPrev : undefined}
+            hasNext={showNavControls ? effectiveHasNext : undefined}
+            onPrev={showNavControls ? effectiveOnPrev : undefined}
+            onNext={showNavControls ? effectiveOnNext : undefined}
           />
         )}
 
@@ -476,11 +511,11 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           </div>
         )}
 
-        {/* Up Next overlay — countdown before auto-advancing to the next playlist item */}
-        {upNextActive && upNextItem && (
+        {/* Up Next overlay — countdown before auto-advancing (playlist or nextVideo mode) */}
+        {upNextActive && upNextItemResolved && (
           <UpNextOverlay
             upNextDelay={upNextDelay}
-            nextItem={upNextItem}
+            nextItem={upNextItemResolved}
             onCancel={cancelUpNext}
             onPlayNow={playNextNow}
           />

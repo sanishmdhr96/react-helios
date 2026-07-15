@@ -8,7 +8,8 @@ import type { ThumbnailCue } from "../../lib/vtt";
 
 export interface ProgressBarProps {
   videoRef: React.RefObject<HTMLMediaElement | null>;
-  playerRef: VideoPlayerRef;
+  /** Only `seek` is used — accepts the full VideoPlayerRef or a minimal audio-player ref. */
+  playerRef: Pick<VideoPlayerRef, "seek">;
   enablePreview?: boolean;
   thumbnailVtt?: string;
   thumbnailVttBaseUrl?: string;

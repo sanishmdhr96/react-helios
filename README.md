@@ -1,6 +1,6 @@
 # react-helios
 
-Production-grade React video player with HLS streaming, zero-cost audio mode, adaptive quality selection, manual quality switching, live stream support, subtitle tracks, VTT sprite sheet thumbnail preview, waveform audio progress bar, Picture-in-Picture, configurable skip-back / skip-forward buttons, mobile-responsive controls, and full keyboard control.
+Production-grade React video player with HLS streaming, **playlist support with Up Next countdown**, zero-cost audio mode, adaptive quality selection, manual quality switching, live stream support, subtitle tracks, VTT sprite sheet thumbnail preview, waveform audio progress bar, Picture-in-Picture, configurable skip-back / skip-forward buttons, mobile-responsive controls, and full keyboard control. Also ships a standalone **`AudioPlayer`** for HLS / direct audio sources when you don't need a video element at all.
 
 ## Installation
 
@@ -58,9 +58,132 @@ Pass any `.m3u8` URL — HLS.js is initialised automatically:
 
 On Safari the browser's native HLS engine is used. A **LIVE** badge and **GO LIVE** button appear automatically for live streams.
 
+## Audio Player
+
+A separate, plain audio-only component — no video element, no fullscreen/theater/PiP. Use it when the content genuinely is audio (podcasts, music, audio-only streams) rather than a video you sometimes hide. For a video that *switches* between video and audio playback, see [Audio Mode](#audio-mode) below instead.
+
+```tsx
+import { AudioPlayer } from "react-helios";
+import "react-helios/styles";
+
+<AudioPlayer
+  src="https://example.com/audio/stream.m3u8"  // HLS .m3u8 or a direct file (MP3, AAC, OGG, …)
+  title="Episode 12 — Deep Dive"
+  artist="My Podcast"
+  poster="https://example.com/cover.jpg"
+  controls
+  options={{
+    autoplay: false,
+    skipSeconds: 15,          // 0 hides the skip buttons
+    progressBarVariant: "bar", // "bar" (default, simple linear) | "waveform"
+  }}
+/>
+```
+
+HLS `.m3u8` sources are handled by the same hls.js engine as `VideoPlayer` (with automatic network/media-error retry); anything else is played as a direct `<audio>` source.
+
+### Title / artist / artwork
+
+`poster`, `title`, and `artist` are all optional — only the ones you pass are rendered, and nothing renders at all if none are set. Set `options.showMeta: false` to keep the props (e.g. for your own UI elsewhere) without rendering the built-in meta row:
+
+```tsx
+<AudioPlayer src="..." title="Episode 12" options={{ showMeta: false }} />
+```
+
+### Theming
+
+Colours are CSS custom properties on the `.rvp-audio-player` root, so you can override them per-instance via `options.theme` (no CSS file needed) or globally via your own stylesheet:
+
+```tsx
+<AudioPlayer
+  src="..."
+  options={{
+    theme: {
+      background: "#0f0f0f",
+      accentColor: "#22c55e",   // progress fill, buttons
+      textColor: "#ffffff",
+      secondaryTextColor: "rgba(255,255,255,0.6)",
+      trackColor: "rgba(255,255,255,0.2)",
+      iconColor: "#ffffff",
+    },
+  }}
+/>
+```
+
+For layout-level changes (padding, border-radius, max-width, etc.) pass `className` or `style` — both land on the same `.rvp-audio-player` root, after the theme variables, so `style` can also override them directly.
+
+### `AudioPlayer` props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `src` | `string` | — | Audio URL — HLS `.m3u8` or a direct file (MP3, AAC, OGG, …) |
+| `poster` | `string` | — | Artwork shown next to the title/artist |
+| `title` | `string` | — | Track title |
+| `artist` | `string` | — | Artist / subtitle text |
+| `controls` | `boolean` | `true` | Show the built-in controls |
+| `className` | `string` | — | Extra class appended to the player root |
+| `style` | `CSSProperties` | — | Inline styles on the player root (applied after `theme`) |
+| `options` | `AudioPlayerOptions` | `{}` | All configuration (see below) |
+
+### `AudioPlayerOptions`
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `autoplay` | `boolean` | `false` | Start playback on mount |
+| `muted` | `boolean` | `false` | Start muted |
+| `loop` | `boolean` | `false` | Loop the track |
+| `preload` | `"none" \| "metadata" \| "auto"` | `"metadata"` | Native `preload` attribute |
+| `enableHLS` | `boolean` | `true` | Enable HLS.js for `.m3u8` sources |
+| `hlsConfig` | `Partial<HlsConfig>` | — | Override any [hls.js config](https://github.com/video-dev/hls.js/blob/master/docs/API.md#fine-tuning) option |
+| `crossOrigin` | `"anonymous" \| "use-credentials"` | — | CORS attribute for the audio element |
+| `skipSeconds` | `number` | `15` | Seconds to jump on skip-back / skip-forward. `0` hides the buttons |
+| `progressBarVariant` | `"bar" \| "waveform"` | `"bar"` | `"bar"` — simple linear progress. `"waveform"` — animated bar-style waveform (same look as VideoPlayer's audio mode) |
+| `showMeta` | `boolean` | `true` | Show the poster/title/artist row when any of them are provided |
+| `theme` | `{ background?, textColor?, secondaryTextColor?, accentColor?, trackColor?, iconColor? }` | — | Colour overrides — each maps to a CSS custom property (see [Theming](#theming)) |
+| `onPlay` / `onPause` / `onEnded` | `() => void` | — | Playback lifecycle events |
+| `onError` | `(error: VideoError) => void` | — | Fired on playback or stream errors |
+| `onTimeUpdate` | `(time: number) => void` | — | Fired during playback |
+| `onDurationChange` | `(duration: number) => void` | — | Fired when duration becomes known |
+| `onBuffering` | `(isBuffering: boolean) => void` | — | Fired when buffering starts / stops |
+
+### `AudioPlayerRef` methods
+
+```tsx
+import { useRef } from "react";
+import { AudioPlayer } from "react-helios";
+import type { AudioPlayerRef } from "react-helios";
+
+const audioRef = useRef<AudioPlayerRef>(null);
+
+<AudioPlayer ref={audioRef} src="..." />
+<button onClick={() => audioRef.current?.play()}>Play</button>
+```
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `play` | `() => Promise<void>` | Start playback |
+| `pause` | `() => void` | Pause playback |
+| `seek` | `(time: number) => void` | Seek to a time in seconds |
+| `setVolume` | `(volume: number) => void` | Set volume `0–1` |
+| `toggleMute` | `() => void` | Toggle mute, restoring the pre-mute volume |
+| `setPlaybackRate` | `(rate: PlaybackRate) => void` | Set playback speed |
+| `getState` | `() => AudioPlayerState` | Snapshot of current player state |
+| `getAudioElement` | `() => HTMLAudioElement \| null` | Access the underlying `<audio>` element |
+
+### Audio Player keyboard shortcuts
+
+Activate when the player has focus (click it or tab to it):
+
+| Key | Action |
+|-----|--------|
+| `Space` / `K` | Play / Pause |
+| `←` / `→` | Seek −5 s / +5 s |
+| `↑` / `↓` | Volume +10% / −10% |
+| `M` | Toggle mute |
+
 ## Audio Mode
 
-Audio mode pauses the video element completely (stopping all video decoding), shows the poster artwork, and hands playback off to a lightweight `<audio>` element — so the player uses roughly the same CPU/GPU as a music app instead of a playing video.
+`VideoPlayer`'s audio mode pauses the video element completely (stopping all video decoding), shows the poster artwork, and hands playback off to a lightweight `<audio>` element — so the player uses roughly the same CPU/GPU as a music app instead of a playing video. This is different from the standalone `AudioPlayer` above: it's a runtime toggle on a video, not a dedicated audio component.
 
 ```tsx
 <VideoPlayer
@@ -231,7 +354,8 @@ To disable the preview entirely:
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `src` | `string` | — | Video URL (MP4, WebM, HLS `.m3u8`, …) |
+| `src` | `string` | — | Video URL (MP4, WebM, HLS `.m3u8`, …). Ignored when `playlist` is provided |
+| `playlist` | `PlaylistItem[]` | — | Array of videos to play in sequence. When provided, `src` is ignored |
 | `poster` | `string` | — | Poster image shown before playback and in audio mode |
 | `controls` | `boolean` | `true` | Show the built-in control bar |
 | `className` | `string` | — | CSS class on the player container |
@@ -290,13 +414,29 @@ To disable the preview entirely:
 | `audioModeSwitchLevel` | `number` | — | HLS quality level index — switch when HLS.js drops to this level or below. `0` = lowest. `-1` = disabled |
 | `audioModeRecoveryInterval` | `number` | `30000` | Ms between recovery probes while in auto-switched audio mode |
 
+### `options` — Playlist
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `loopPlaylist` | `boolean` | `false` | Loop back to the first item after the last one ends |
+| `upNextDelay` | `number` | `5` | Seconds for the Up Next countdown. `0` = advance immediately. Applies to both `playlist` and `nextVideo` modes |
+| `nextVideo` | `{ src?: string; poster?: string; title?: string }` | — | Show the Up Next overlay at the end of a single (non-playlist) video. The player does not load this source — handle navigation in `onUpNextComplete` |
+| `onUpNextComplete` | `() => void` | — | Fired when the Up Next countdown completes (or the user clicks the thumbnail) in `nextVideo` mode. Use it to navigate to the next page |
+| `showPlaylistControls` | `boolean` | auto | Force-show (`true`) or force-hide (`false`) the Prev / Next buttons. By default they appear when a `playlist` is provided or `onPrevClick` / `onNextClick` are set |
+| `onPrevClick` | `() => void` | — | Custom handler for the Prev button click. Replaces built-in playlist `goPrev()`. Button appears automatically when this is set |
+| `onNextClick` | `() => void` | — | Custom handler for the Next button click. Replaces built-in playlist `goNext()`. Button appears automatically when this is set |
+| `prevEnabled` | `boolean` | `true` | Whether the Prev button is active (not dimmed). Only relevant when `onPrevClick` is provided |
+| `nextEnabled` | `boolean` | `true` | Whether the Next button is active (not dimmed). Only relevant when `onNextClick` is provided |
+| `onPlaylistIndexChange` | `(index: number, item: PlaylistItem) => void` | — | Fired when the active track changes (auto-advance or manual prev/next/goToIndex) |
+| `onPlaylistEnded` | `() => void` | — | Fired when the last item ends and `loopPlaylist` is `false` |
+
 ### `options` — Callbacks
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `onPlay` | `() => void` | Fired when playback starts |
 | `onPause` | `() => void` | Fired when playback pauses |
-| `onEnded` | `() => void` | Fired when playback ends |
+| `onEnded` | `() => void` | Fired when the current item ends (after playlist auto-advance logic runs) |
 | `onError` | `(error: VideoError) => void` | Fired on playback or stream errors |
 | `onTimeUpdate` | `(time: number) => void` | Fired every ~250 ms during playback |
 | `onDurationChange` | `(duration: number) => void` | Fired when video duration becomes known |
@@ -310,6 +450,142 @@ To disable the preview entirely:
 |--------|------|-------------|
 | `contextMenuItems` | `ContextMenuItem[]` | Extra items appended to the right-click context menu |
 | `controlBarItems` | `ControlBarItem[]` | Extra icon buttons appended to the right side of the control bar |
+
+## Playlist
+
+Pass an array of `PlaylistItem` objects as the `playlist` prop. The player auto-advances through them when each video ends and shows a YouTube-style **Up Next** countdown overlay before switching.
+
+```tsx
+import { VideoPlayer } from "react-helios";
+import type { PlaylistItem } from "react-helios";
+
+const playlist: PlaylistItem[] = [
+  {
+    src: "https://example.com/episode-1.m3u8",
+    title: "Episode 1 — Pilot",
+    poster: "https://example.com/ep1-thumb.jpg",
+  },
+  {
+    src: "https://example.com/episode-2.m3u8",
+    title: "Episode 2 — The Journey",
+    poster: "https://example.com/ep2-thumb.jpg",
+  },
+  {
+    src: "https://example.com/episode-3.m3u8",
+    title: "Episode 3 — Finale",
+  },
+];
+
+<VideoPlayer
+  playlist={playlist}
+  controls
+  options={{
+    autoplay: false,      // first item respects autoplay; subsequent items always autoplay
+    loopPlaylist: false,  // stop after the last item
+    upNextDelay: 5,       // 5-second countdown; set to 0 to advance immediately
+    onPlaylistIndexChange: (index, item) => {
+      console.log(`Now playing track ${index + 1}:`, item.title);
+    },
+    onPlaylistEnded: () => {
+      console.log("Playlist finished");
+    },
+  }}
+/>
+```
+
+### PlaylistItem
+
+```ts
+interface PlaylistItem {
+  src: string;       // Video URL (MP4, HLS, etc.)
+  poster?: string;   // Poster / thumbnail shown for this item and in the Up Next overlay
+  title?: string;    // Display name shown in the Up Next overlay
+  audioSrc?: string; // Per-item audio-only source (overrides the global audioSrc option)
+}
+```
+
+### Up Next overlay
+
+When a video ends and a next item exists, the player shows a countdown overlay — the next item's thumbnail, title, and a circular ring that depletes over `upNextDelay` seconds.
+
+- **Click the thumbnail or the backdrop** → plays the next video immediately
+- **Click Cancel** → dismisses the overlay; the normal replay screen appears instead
+- Set `upNextDelay: 0` to skip the overlay and advance without any pause
+
+### Control bar buttons
+
+When a `playlist` is provided, **⏮ Prev** and **⏭ Next** buttons appear automatically in the control bar. Prev is dimmed on the first track; Next is dimmed on the last.
+
+### Manual navigation
+
+Navigate programmatically via the ref or use the `N` / `B` keyboard shortcuts:
+
+```tsx
+const playerRef = useRef<VideoPlayerRef>(null);
+
+playerRef.current?.goNext();               // advance to next track
+playerRef.current?.goPrev();               // go back to previous track
+playerRef.current?.goToIndex(2);           // jump to a specific track (zero-indexed)
+playerRef.current?.currentPlaylistIndex(); // returns the current index
+```
+
+### Per-item poster and audio source
+
+Each `PlaylistItem` can override the poster and audio source for that specific track:
+
+```tsx
+const playlist: PlaylistItem[] = [
+  {
+    src: "https://example.com/ep1.m3u8",
+    poster: "https://example.com/ep1-thumb.jpg",
+    audioSrc: "https://example.com/ep1-audio-only.m3u8",
+  },
+  {
+    src: "https://example.com/ep2.m3u8",
+    // no poster — player shows black background
+  },
+];
+```
+
+### Single video with Up Next teaser
+
+You don't need a full playlist to use the Up Next overlay. Pass a `nextVideo` object and the player shows the countdown at the end of the current video. The player does **not** load `nextVideo.src` — it only uses the thumbnail and title for the overlay. Handle navigation in `onUpNextComplete`.
+
+```tsx
+<VideoPlayer
+  src="https://example.com/lesson-1.m3u8"
+  options={{
+    nextVideo: {
+      src: "https://example.com/lesson-2.m3u8",   // display only, not loaded
+      title: "Lesson 2 — Core Concepts",
+      poster: "https://example.com/lesson-2/thumb.jpg",
+    },
+    upNextDelay: 5,
+    onUpNextComplete: () => {
+      // Navigate however suits your app — router.push, window.location, etc.
+      router.push("/course/lesson-2");
+    },
+  }}
+/>
+```
+
+### Custom Prev / Next handlers
+
+Pass `onPrevClick` and `onNextClick` to take full control of what happens when those buttons are clicked. The buttons appear automatically when these callbacks are provided — no need to set `showPlaylistControls: true`. Use `prevEnabled` / `nextEnabled` to control whether each button is dimmed.
+
+```tsx
+<VideoPlayer
+  src="https://example.com/lesson-3.m3u8"
+  options={{
+    onPrevClick: () => router.push("/course/lesson-2"),
+    onNextClick: () => router.push("/course/lesson-4"),
+    prevEnabled: true,   // Prev button is active
+    nextEnabled: false,  // Next button is dimmed — e.g. last lesson
+  }}
+/>
+```
+
+These work with both single videos and playlists. When `onPrevClick` / `onNextClick` are set they replace the built-in `goPrev()` / `goNext()` calls.
 
 ## Quality Selection
 
@@ -447,6 +723,10 @@ export default function App() {
 | `toggleAudioMode` | `() => void` | Toggle audio-only mode |
 | `getState` | `() => PlayerState` | Snapshot of current player state |
 | `getVideoElement` | `() => HTMLVideoElement \| null` | Access the underlying `<video>` element |
+| `goNext` | `() => void` | Advance to the next playlist item. No-op when no playlist is provided |
+| `goPrev` | `() => void` | Go back to the previous playlist item. No-op when no playlist is provided |
+| `goToIndex` | `(index: number) => void` | Jump to a specific playlist index (zero-based). No-op when no playlist is provided |
+| `currentPlaylistIndex` | `() => number` | Returns the current playlist index, or `0` when no playlist is provided |
 
 ## Theater Mode
 
@@ -508,6 +788,8 @@ Shortcuts activate when the player has focus (click the player or tab to it).
 | `T` | Toggle theater mode |
 | `P` | Toggle Picture-in-Picture |
 | `L` | Seek to live edge (live streams only) |
+| `N` | Next playlist item (playlist mode only) |
+| `B` | Previous playlist item (playlist mode only) |
 | `0`–`9` | Jump to 0%–90% of duration |
 
 Progress bar keyboard (when the progress bar has focus):
@@ -538,6 +820,11 @@ import type {
   VideoErrorCode,
   ContextMenuItem,
   ControlBarItem,
+  PlaylistItem,
+  AudioPlayerProps,
+  AudioPlayerOptions,
+  AudioPlayerRef,
+  AudioPlayerState,
 } from "react-helios";
 
 import { AUDIO_BANDWIDTH_THRESHOLDS, AUDIO_SWITCH_LEVELS } from "react-helios";
@@ -678,8 +965,8 @@ The player is architected to produce **zero React re-renders during playback**:
 ```
 react-helios/
 ├── src/                    # Library source
-│   ├── components/         # VideoPlayer, Controls, AudioModeOverlay, control elements
-│   ├── hooks/              # useVideoPlayer (state + HLS init)
+│   ├── components/         # VideoPlayer, AudioPlayer, Controls, AudioModeOverlay, control elements
+│   ├── hooks/              # useVideoPlayer, useAudioPlayer (state + HLS init)
 │   ├── lib/                # Types, HLS utilities, VTT parser, format helpers
 │   └── styles/             # CSS
 ├── examples/
