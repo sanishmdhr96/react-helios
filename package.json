@@ -1,6 +1,6 @@
 {
   "name": "react-helios",
-  "version": "2.14.0",
+  "version": "2.14.1",
   "description": "Production-grade React video player with HLS, playlist support, Up Next overlay, zero-cost audio mode, adaptive quality, live streams, subtitles, VTT sprite thumbnail preview, skip buttons, mobile-responsive controls, and a standalone HLS-capable AudioPlayer",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
