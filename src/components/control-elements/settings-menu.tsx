@@ -121,9 +121,10 @@ const SettingsMenu = memo<SettingsMenuProps>(({
 
   // Badge shown next to the "Auto" option in the sub-panel: "(1080p)"
   const autoQualityName = useMemo(() => {
-    if (playingQualityLevel < 0) return null;
+    // Only show the playing level while Auto is actually selected
+    if (playingQualityLevel < 0 || currentQualityLevel !== -1) return null;
     return qualityLevels.find((l) => l.id === playingQualityLevel)?.name ?? null;
-  }, [qualityLevels, playingQualityLevel]);
+  }, [qualityLevels, playingQualityLevel, currentQualityLevel]);
 
   return (
     <div ref={containerRef} className="settingsContainer">
